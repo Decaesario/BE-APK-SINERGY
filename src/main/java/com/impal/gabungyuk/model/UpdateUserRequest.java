@@ -6,10 +6,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
-public class WebResponse<T> {
-    private T data;
-    private String errors;
+public class UpdateUserRequest {
+    private String username;
+    private String email;
+    private String password;
 }

@@ -1,7 +1,7 @@
 # User API Spec
 
 ## Register User
-- Endpoint: `POST /api/v1/Auth/register`
+- Endpoint: `POST /api/v1/users/register`
 - Request Body:
 ```json
 {
@@ -13,10 +13,18 @@
 - Response Body (Success):
 ```json
 {
+  "status": 200,
   "message": "User registered successfully",
-  "userId": "string"
+  "data": {
+    "userId": "number",
+    "username": "string",
+    "email": "string",
+    "token": "string",
+    "expiredAt": "number"
+  }
 }
 ```
+- Catatan: token hanya dikembalikan pada response API (stateless), tidak disimpan di database.
 - Response Body (Error):
 - Status Code: 400 Bad Request
 ```json
@@ -27,7 +35,7 @@
 ```
 
 ## Login User
-- Endpoint: `POST /api/v1/Auth/login`
+- Endpoint: `POST /api/v1/users/login`
 - Request Body:
 ```json
 {
@@ -39,12 +47,14 @@
 - Response Body (Success):
 ```json
 {
-  "data" : {
+  "status": 200,
+  "message": "Login successful",
+  "data": {
     "token": "string",
-    "userId": "string",
+    "userId": "number",
     "username": "string",
     "email": "string",
-    "expiredAt": "string"
+    "expiredAt": "number"
   }
 }
 ```
@@ -59,16 +69,18 @@
 ```
 
 ## Get User
-- Endpoint: `GET /api/v1/Users/current`
+- Endpoint: `GET /api/v1/users/current`
 - Headers: Authorization: Bearer {token}
 - Response Body (Success):
 ```json
 {
-    "data": {
-        "userId": "string",
-        "username": "string",
-        "email": "string"
-    }
+  "status": 200,
+  "message": "Get user successful",
+  "data": {
+    "userId": "number",
+    "username": "string",
+    "email": "string"
+  }
 }
 ```
 
@@ -82,28 +94,34 @@
 ```
 
 ## Update User
-- Endpoint: `PATCH /api/v1/Users/current`
+- Endpoint: `PATCH /api/v1/users/current`
 - Headers: Authorization: Bearer {token}
 - Request Body:
 ```json
 {
-  "username": "string", // put if only want to update username
-  "email": "string", // put if only want to update email
-  "password": "string" // put if only want to update password
+  "username": "string",
+  "email": "string",
+  "password": "string"
 }
 ```
 - Response Body (Success):
 ```json
 {
-  "data" : {
-    "userId": "string",
+  "status": 200,
+  "message": "Update user successful",
+  "data": {
+    "userId": "number",
     "username": "string",
-    "email": "string"
+    "email": "string",
+    "token": "string",
+    "expiredAt": "number"
+  }
 }
 ```
 - Response Body (Error):
-- Status Code: 400 Bad Request
+- Status Code: 400 Bad Request (semua field kosong)
 - Status Code: 401 Unauthorized
+- Status Code: 409 Conflict (username/email sudah dipakai)
 ```json
 {
   "error": "User update failed",
@@ -112,18 +130,21 @@
 ```
 
 ## Delete User
-- Endpoint: `DELETE /api/v1/Auth/logout`
+- Endpoint: `DELETE /api/v1/users/current`
 - Headers: Authorization: Bearer {token}
 - Response Body (Success):
 ```json
 {
-  "data" : {
-    "message": "User logged out successfully"
+  "status": 200,
+  "message": "Delete user successful",
+  "data": {
+    "message": "User deleted successfully"
   }
 }
 ```
 - Response Body (Error):
 - Status Code: 401 Unauthorized
+- Status Code: 404 Not Found (user tidak ditemukan)
 ```json
 {
   "error": "Unauthorized",

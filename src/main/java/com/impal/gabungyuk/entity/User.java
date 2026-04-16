@@ -25,10 +25,4 @@ public class User {
 
     @Column(name = "password", nullable = false)
     private String password;
-
-    @Column(name = "token")
-    private String token;
-
-    @Column(name = "token_expired_at")
-    private Long tokenExpiredAt;
 }
