@@ -60,7 +60,7 @@ public class UserController {
     }
 
     @PatchMapping(
-            value = "/api/v1/users/current",
+            value = "/api/v1/update/users/current",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
