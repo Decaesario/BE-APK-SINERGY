@@ -36,3 +36,10 @@ build/
 src/main/resources/application*.properties
 src/main/resources/application*.yml
 
+*.class
+*.jar
+*.war
+.env
+application-local.properties
+.DS_Store
+
