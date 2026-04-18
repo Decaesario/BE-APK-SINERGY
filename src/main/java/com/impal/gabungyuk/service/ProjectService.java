@@ -56,4 +56,20 @@ public class ProjectService {
                 .build();
                 
     }
+    public void deleteProject(Integer projectId, String authorizationHeader) {
+
+    Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+
+    User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+    Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+
+    if (!project.getUser().getIdPengguna().equals(user.getIdPengguna())) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to delete this project");
+    }
+
+    projectRepository.delete(project);
+    }
 }

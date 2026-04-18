@@ -29,6 +29,21 @@ public class ProjectController {
                 .data(response)
                 .build();
     }
+   @DeleteMapping(
+            value = "/api/v1/delete/projects",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public SuccessResponse<Void> deleteProject(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody ProjectDeleteRequest request
+    ) {
+        projectService.deleteProject(request.getProjectId(), authorizationHeader);
 
-    
+        return SuccessResponse.<Void>builder()
+                .status(200)
+                .message("Project deleted successfully")
+                .data(null)
+                .build();
+    }
 }
