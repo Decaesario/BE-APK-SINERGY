@@ -13,6 +13,9 @@ public class ProjectResponse {
     private Integer id; 
     private String title;
     private String description;
-    private String repositoryLink;      
+    private String category;
+    private String status;
+    private String repositoryLink;   
+    private String fileUrl; 
     
 }

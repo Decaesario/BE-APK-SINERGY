@@ -36,7 +36,10 @@ public class ProjectService {
                 .user(user)
                 .title(projectRequest.getTitle())
                 .description(projectRequest.getDescription())
+                .category(projectRequest.getCategory())
+                .status(projectRequest.getStatus())
                 .repositoryLink(projectRequest.getRepositoryLink())
+                .fileUrl(projectRequest.getFileUrl())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -45,8 +48,11 @@ public class ProjectService {
         return ProjectResponse.builder()
                 .id(savedProject.getProjectId())
                 .title(savedProject.getTitle())
+                .category(savedProject.getCategory())
+                .status(savedProject.getStatus())
                 .description(savedProject.getDescription())
                 .repositoryLink(savedProject.getRepositoryLink())
+                .fileUrl(savedProject.getFileUrl())
                 .build();
                 
     }
