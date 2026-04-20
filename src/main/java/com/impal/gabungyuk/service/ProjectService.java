@@ -12,6 +12,8 @@ import com.impal.gabungyuk.repository.ProjectRepository;
 import com.impal.gabungyuk.repository.UserRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ProjectService {
@@ -56,6 +58,58 @@ public class ProjectService {
                 .build();
                 
     }
+    public List<ProjectResponse> getAllProjectsByUser(String authorizationHeader) {
+        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        List<Project> projects = projectRepository.findByUserIdPengguna(userId);
+
+        return projects.stream()
+                .map(project -> ProjectResponse.builder()
+                        .id(project.getProjectId())
+                        .title(project.getTitle())
+                        .description(project.getDescription())
+                        .category(project.getCategory())
+                        .status(project.getStatus())
+                        .repositoryLink(project.getRepositoryLink())
+                        .fileUrl(project.getFileUrl())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    public ProjectResponse updateProject(Integer projectId, ProjectRequest projectRequest, String authorizationHeader) {
+        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+
+        if (!project.getUser().getIdPengguna().equals(user.getIdPengguna())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to edit this project");
+        }
+
+        project.setTitle(projectRequest.getTitle());
+        project.setDescription(projectRequest.getDescription());
+        project.setCategory(projectRequest.getCategory());
+        project.setStatus(projectRequest.getStatus());
+        project.setRepositoryLink(projectRequest.getRepositoryLink());
+        project.setFileUrl(projectRequest.getFileUrl());
+
+        Project updatedProject = projectRepository.save(project);
+
+        return ProjectResponse.builder()
+                .id(updatedProject.getProjectId())
+                .title(updatedProject.getTitle())
+                .description(updatedProject.getDescription())
+                .category(updatedProject.getCategory())
+                .status(updatedProject.getStatus())
+                .repositoryLink(updatedProject.getRepositoryLink())
+                .fileUrl(updatedProject.getFileUrl())
+                .build();
+    }
+
     public void deleteProject(Integer projectId, String authorizationHeader) {
 
     Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
