@@ -1,4 +1,6 @@
-package com.impal.gabungyuk.core.model;
+package com.impal.gabungyuk.project.model.request;
+
+import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,13 +11,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProjectResponse {
-    private Integer id; 
+public class ProjectRequest {
     private String title;
     private String description;
     private String category;
     private String status;
-    private String repositoryLink;   
-    private String fileUrl; 
-    
+    private String repositoryLink;
+    private String fileUrl;
 }

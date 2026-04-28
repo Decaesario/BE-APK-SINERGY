@@ -1,4 +1,4 @@
-package com.impal.gabungyuk.core.entity;
+package com.impal.gabungyuk.project.entity;
 
 import java.time.LocalDateTime;
 

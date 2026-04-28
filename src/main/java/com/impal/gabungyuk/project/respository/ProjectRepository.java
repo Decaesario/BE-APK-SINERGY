@@ -1,7 +1,9 @@
-package com.impal.gabungyuk.core.repository;
+package com.impal.gabungyuk.project.respository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import com.impal.gabungyuk.core.entity.Project;
+
+import com.impal.gabungyuk.project.entity.Project;
+
 import java.util.List;
 
 
