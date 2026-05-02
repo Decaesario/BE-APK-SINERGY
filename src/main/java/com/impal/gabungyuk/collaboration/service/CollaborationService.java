@@ -330,7 +330,7 @@ public class CollaborationService {
                         .build())
                 .owner(CollaborationResponse.OwnerDetail.builder()
                         .idPengguna(project.getUser().getIdPengguna())
-                        .username(project.getUser().getUsername())
+                        .namaLengkap(project.getUser().getNamaLengkap())
                         .email(project.getUser().getEmail())
                         .build())
                 .build();

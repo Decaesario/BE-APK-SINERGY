@@ -71,7 +71,7 @@ public class CollaborationResponse {
     @Builder
     public static class OwnerDetail {
         private Integer idPengguna;
-        private String username;
+        private String namaLengkap;
         private String email;
     }
 }
