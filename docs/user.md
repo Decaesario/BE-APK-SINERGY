@@ -68,6 +68,51 @@
 }
 ```
 
+- Catatan:
+  - Login manual hanya bisa jika akun memiliki password.
+  - Jika akun dibuat dari Google login dan password belum di-set, gunakan endpoint update user untuk set password terlebih dahulu.
+
+## Login Google User
+- Endpoint: `POST /api/v1/users/login/google`
+- Request Body:
+```json
+{
+  "idToken": "firebase_id_token"
+}
+```
+- Alur backend:
+  - Backend memverifikasi `idToken` dengan Firebase Admin SDK.
+  - Backend mengambil email terverifikasi dari token (bukan dari request client).
+  - Jika email sudah ada: gunakan akun existing, update `firebase_uid` jika masih kosong.
+  - Jika email belum ada: buat user baru dengan `password = null`, `provider = google`.
+- Konfigurasi Firebase Admin:
+  - Set salah satu env berikut ke path file service account JSON:
+    - `FIREBASE_SERVICE_ACCOUNT_PATH`
+    - `GOOGLE_APPLICATION_CREDENTIALS`
+- Response Body (Success):
+```json
+{
+  "status": 200,
+  "message": "Google login successful",
+  "data": {
+    "token": "string",
+    "userId": "number",
+    "email": "string",
+    "expiredAt": "number"
+  }
+}
+```
+
+- Response Body (Error):
+- Status Code: 401 Unauthorized (token invalid / email token tidak valid)
+- Status Code: 500 Internal Server Error (Firebase Admin belum dikonfigurasi)
+```json
+{
+  "error": "Unauthorized",
+  "details": "string"
+}
+```
+
 ## Get User
 - Endpoint: `GET /api/v1/users/current`
 - Headers: Authorization: Bearer {token}
@@ -94,7 +139,7 @@
 ```
 
 ## Update User
-- Endpoint: `PATCH /api/v1/users/current`
+- Endpoint: `PATCH /api/v1/update/users/current` atau `PUT /api/v1/update/users/current`
 - Headers: Authorization: Bearer {token}
 - Request Body:
 ```json
@@ -104,6 +149,12 @@
   "password": "string"
 }
 ```
+
+## Auth Linking Notes
+- `email` adalah unique identifier utama untuk semua metode login.
+- Satu email hanya merepresentasikan satu akun (`users.email` unik).
+- `firebase_uid` digunakan untuk mengikat akun Google ke user yang sama.
+- `provider` menyimpan sumber login: `manual`, `google`, atau `both`.
 - Response Body (Success):
 ```json
 {

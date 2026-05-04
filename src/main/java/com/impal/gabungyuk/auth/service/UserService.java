@@ -1,11 +1,13 @@
 package com.impal.gabungyuk.auth.service;
 
 import com.impal.gabungyuk.auth.entity.User;
-import com.impal.gabungyuk.auth.model.response.AuthUserResponse;
+import com.impal.gabungyuk.auth.model.request.LoginGoogleRequest;
 import com.impal.gabungyuk.auth.model.request.LoginUserRequest;
 import com.impal.gabungyuk.auth.model.request.RegisterUserRequest;
 import com.impal.gabungyuk.auth.model.request.UpdateUserRequest;
+import com.impal.gabungyuk.auth.model.response.AuthUserResponse;
 import com.impal.gabungyuk.auth.respository.UserRepository;
+import com.impal.gabungyuk.core.security.BCrypt;
 import com.impal.gabungyuk.core.service.TokenService;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
@@ -15,36 +17,40 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UserService {
 
+    private static final String PROVIDER_MANUAL = "manual";
+    private static final String PROVIDER_GOOGLE = "google";
+    private static final String PROVIDER_BOTH = "both";
+
     private final UserRepository userRepository;
     private final TokenService tokenService;
+    private final FirebaseAuthService firebaseAuthService;
 
-    public UserService(UserRepository userRepository, TokenService tokenService) {
+    public UserService(UserRepository userRepository, TokenService tokenService, FirebaseAuthService firebaseAuthService) {
         this.userRepository = userRepository;
         this.tokenService = tokenService;
+        this.firebaseAuthService = firebaseAuthService;
     }
 
     @Transactional
     public AuthUserResponse register(RegisterUserRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String email = normalizeEmail(request.getEmail());
+        String rawPassword = requirePassword(request.getPassword());
+
+        if (userRepository.existsByEmail(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
         }
 
         User user = User.builder()
-                .namaLengkap(request.getNamaLengkap())
-                .email(request.getEmail())
-                .password(request.getPassword())
-                // Tambahkan baris di bawah ini:
+                .namaLengkap(resolveDisplayName(request.getNamaLengkap(), email))
+                .email(email)
+                .password(hashPassword(rawPassword))
+                .provider(PROVIDER_MANUAL)
                 .institusi(request.getInstitusi())
                 .bio(request.getBio())
                 .keahlian(request.getKeahlian())
                 .lokasi(request.getLokasi())
                 .whatsapp(request.getWhatsapp())
                 .build();
-                // .namaLengkap(request.getNamaLengkap())//ini guat tambah
-                // // .username(request.getUsername())
-                // .email(request.getEmail())
-                // .password(request.getPassword())
-                // .build();
 
         User savedUser = userRepository.save(user);
         return buildAuthResponse(savedUser);
@@ -52,11 +58,96 @@ public class UserService {
 
     @Transactional
     public AuthUserResponse login(LoginUserRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        String email = normalizeEmail(request.getEmail());
+        String rawPassword = requirePassword(request.getPassword());
+
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
 
-        if (!user.getPassword().equals(request.getPassword())) {
+        String storedPassword = user.getPassword();
+        if (storedPassword == null || storedPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Password is not set for this account");
+        }
+
+        boolean passwordMatched;
+        boolean shouldSave = false;
+        if (isBcryptHash(storedPassword)) {
+            passwordMatched = BCrypt.checkpw(rawPassword, storedPassword);
+        } else {
+            passwordMatched = storedPassword.equals(rawPassword);
+            if (passwordMatched) {
+                user.setPassword(hashPassword(rawPassword));
+                shouldSave = true;
+            }
+        }
+
+        if (!passwordMatched) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        }
+
+        String mergedProvider = mergeProvider(resolveCurrentProvider(user), PROVIDER_MANUAL);
+        if (!mergedProvider.equals(user.getProvider())) {
+            user.setProvider(mergedProvider);
+            shouldSave = true;
+        }
+
+        if (shouldSave) {
+            user = userRepository.save(user);
+        }
+
+        return buildAuthResponse(user);
+    }
+
+    @Transactional
+    public AuthUserResponse loginWithGoogle(LoginGoogleRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
+        }
+
+        FirebaseAuthService.FirebaseIdentity identity = firebaseAuthService.verifyIdToken(request.getIdToken());
+        User userByEmail = userRepository.findByEmail(identity.email()).orElse(null);
+        User userByFirebaseUid = userRepository.findByFirebaseUid(identity.uid()).orElse(null);
+
+        if (userByEmail != null && userByFirebaseUid != null
+                && !userByEmail.getIdPengguna().equals(userByFirebaseUid.getIdPengguna())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Google account is already linked to another user"
+            );
+        }
+
+        User user = userByEmail != null ? userByEmail : userByFirebaseUid;
+        if (user == null) {
+            User createdUser = userRepository.save(User.builder()
+                    .namaLengkap(resolveDisplayName(identity.name(), identity.email()))
+                    .email(identity.email())
+                    .password(null)
+                    .firebaseUid(identity.uid())
+                    .provider(PROVIDER_GOOGLE)
+                    .build());
+            return buildAuthResponse(createdUser);
+        }
+
+        if (!identity.email().equals(user.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email does not match linked Google account");
+        }
+
+        boolean shouldSave = false;
+        if (user.getFirebaseUid() == null || user.getFirebaseUid().isBlank()) {
+            user.setFirebaseUid(identity.uid());
+            shouldSave = true;
+        } else if (!user.getFirebaseUid().equals(identity.uid())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google account mismatch for this email");
+        }
+
+        String mergedProvider = mergeProvider(resolveCurrentProvider(user), PROVIDER_GOOGLE);
+        if (!mergedProvider.equals(user.getProvider())) {
+            user.setProvider(mergedProvider);
+            shouldSave = true;
+        }
+
+        if (shouldSave) {
+            user = userRepository.save(user);
         }
 
         return buildAuthResponse(user);
@@ -71,18 +162,17 @@ public class UserService {
         return AuthUserResponse.builder()
                 .userId(user.getIdPengguna())
                 .namaLengkap(user.getNamaLengkap())
-                .profilePicture(user.getProfilePicture())//ini guat tambah
-                .institusi(user.getInstitusi())//ini guat tambah
-                .bio(user.getBio())//ini guat tambah
-                .keahlian(user.getKeahlian())//ini guat tambah
-                .lokasi(user.getLokasi())//ini guat tambah
-                .whatsapp(user.getWhatsapp())//ini guat tambah
-                // .username(user.getUsername()) punya lu bar
+                .profilePicture(user.getProfilePicture())
+                .institusi(user.getInstitusi())
+                .bio(user.getBio())
+                .keahlian(user.getKeahlian())
+                .lokasi(user.getLokasi())
+                .whatsapp(user.getWhatsapp())
                 .email(user.getEmail())
                 .build();
     }
 
- @Transactional
+    @Transactional
     public AuthUserResponse updateCurrentUser(String authorizationHeader, UpdateUserRequest request) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
@@ -109,7 +199,7 @@ public class UserService {
         }
 
         if (hasEmail) {
-            String email = request.getEmail().trim();
+            String email = normalizeEmail(request.getEmail());
 
             if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
@@ -119,7 +209,8 @@ public class UserService {
         }
 
         if (hasPassword) {
-            user.setPassword(request.getPassword());
+            user.setPassword(hashPassword(request.getPassword().trim()));
+            user.setProvider(mergeProvider(resolveCurrentProvider(user), PROVIDER_MANUAL));
         }
 
         if (hasProfilePicture) {
@@ -147,7 +238,6 @@ public class UserService {
         }
 
         User updatedUser = userRepository.save(user);
-
         return buildAuthResponse(updatedUser);
     }
 
@@ -162,74 +252,95 @@ public class UserService {
     }
 
     private AuthUserResponse buildAuthResponse(User user) {
-    long expiredAt = System.currentTimeMillis() + (1000L * 60 * 60 * 24 * 7);
+        long expiredAt = System.currentTimeMillis() + (1000L * 60 * 60 * 24 * 7);
 
-    return AuthUserResponse.builder()
-            .userId(user.getIdPengguna())
-            .namaLengkap(user.getNamaLengkap())
-            .email(user.getEmail())
-            .profilePicture(user.getProfilePicture())
-            .institusi(user.getInstitusi())
-            .bio(user.getBio())
-            .keahlian(user.getKeahlian())
-            .lokasi(user.getLokasi())
-            .whatsapp(user.getWhatsapp())
-            .token(tokenService.generateToken(user.getIdPengguna(), expiredAt))
-            .expiredAt(expiredAt)
-            .build();
+        return AuthUserResponse.builder()
+                .userId(user.getIdPengguna())
+                .namaLengkap(user.getNamaLengkap())
+                .email(user.getEmail())
+                .profilePicture(user.getProfilePicture())
+                .institusi(user.getInstitusi())
+                .bio(user.getBio())
+                .keahlian(user.getKeahlian())
+                .lokasi(user.getLokasi())
+                .whatsapp(user.getWhatsapp())
+                .token(tokenService.generateToken(user.getIdPengguna(), expiredAt))
+                .expiredAt(expiredAt)
+                .build();
     }
-} 
 
-    // punya akbar 
-    // @Transactional
-    // public AuthUserResponse updateCurrentUser(String authorizationHeader, UpdateUserRequest request) {
-    //     Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
-    //     User user = userRepository.findById(userId)
-    //             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    private String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+        }
+        return email.trim().toLowerCase();
+    }
 
-    //     boolean hasUsername = request.getUsername() != null && !request.getUsername().isBlank();
-    //     boolean hasEmail = request.getEmail() != null && !request.getEmail().isBlank();
-    //     boolean hasPassword = request.getPassword() != null && !request.getPassword().isBlank();
+    private String requirePassword(String password) {
+        if (password == null || password.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password is required");
+        }
+        return password.trim();
+    }
 
-    //     if (!hasUsername && !hasEmail && !hasPassword) {
-    //         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one field must be provided");
-    //     }
+    private String resolveDisplayName(String requestedName, String email) {
+        if (requestedName != null && !requestedName.isBlank()) {
+            return requestedName.trim();
+        }
 
-    //     if (hasUsername) {
-    //         String username = request.getUsername().trim();
-    //         if (!username.equals(user.getUsername()) && userRepository.existsByUsername(username)) {
-    //             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
-    //         }
-    //         user.setUsername(username);
-    //     }
+        int separator = email.indexOf('@');
+        if (separator > 0) {
+            return email.substring(0, separator);
+        }
 
-    //     if (hasEmail) {
-    //         String email = request.getEmail().trim();
-    //         if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
-    //             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
-    //         }
-    //         user.setEmail(email);
-    //     }
+        return email;
+    }
 
-    //     if (hasPassword) {
-    //         user.setPassword(request.getPassword());
-    //     }
+    private String hashPassword(String password) {
+        return BCrypt.hashpw(password, BCrypt.gensalt());
+    }
 
-    //     User updatedUser = userRepository.save(user);
-    //     return buildAuthResponse(updatedUser);
-    // }
+    private boolean isBcryptHash(String storedPassword) {
+        return storedPassword.startsWith("$2a$")
+                || storedPassword.startsWith("$2b$")
+                || storedPassword.startsWith("$2y$");
+    }
 
-  
+    private String mergeProvider(String currentProvider, String newProvider) {
+        if (currentProvider == null || currentProvider.isBlank()) {
+            return newProvider;
+        }
 
+        if (PROVIDER_BOTH.equals(currentProvider) || currentProvider.equals(newProvider)) {
+            return currentProvider;
+        }
 
-//     private AuthUserResponse buildAuthResponse(User user) {
-//         long expiredAt = System.currentTimeMillis() + (1000L * 60 * 60 * 24 * 7);
-//         return AuthUserResponse.builder()
-//                 .userId(user.getIdPengguna())
-//                 .username(user.getUsername())
-//                 .email(user.getEmail())
-//                 .token(tokenService.generateToken(user.getIdPengguna(), expiredAt))
-//                 .expiredAt(expiredAt)
-//                 .build();
-//     }
-// }
+        if ((PROVIDER_MANUAL.equals(currentProvider) && PROVIDER_GOOGLE.equals(newProvider))
+                || (PROVIDER_GOOGLE.equals(currentProvider) && PROVIDER_MANUAL.equals(newProvider))) {
+            return PROVIDER_BOTH;
+        }
+
+        return newProvider;
+    }
+
+    private String resolveCurrentProvider(User user) {
+        if (user.getProvider() != null && !user.getProvider().isBlank()) {
+            return user.getProvider();
+        }
+
+        boolean hasManual = user.getPassword() != null && !user.getPassword().isBlank();
+        boolean hasGoogle = user.getFirebaseUid() != null && !user.getFirebaseUid().isBlank();
+
+        if (hasManual && hasGoogle) {
+            return PROVIDER_BOTH;
+        }
+        if (hasManual) {
+            return PROVIDER_MANUAL;
+        }
+        if (hasGoogle) {
+            return PROVIDER_GOOGLE;
+        }
+
+        return null;
+    }
+}

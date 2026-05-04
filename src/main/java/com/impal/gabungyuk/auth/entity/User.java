@@ -26,8 +26,14 @@ public class User {
     @Column(name = "email", nullable = false, unique = true)
     private String email;
 
-    @Column(name = "password", nullable = false)
+    @Column(name = "password")
     private String password;
+
+    @Column(name = "firebase_uid", unique = true)
+    private String firebaseUid;
+
+    @Column(name = "provider")
+    private String provider;
 
     @Column(name = "profile_picture", nullable = true)
     private String profilePicture;
