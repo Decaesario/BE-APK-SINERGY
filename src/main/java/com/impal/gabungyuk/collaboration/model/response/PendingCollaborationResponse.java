@@ -1,23 +1,29 @@
 package com.impal.gabungyuk.collaboration.model.response;
 
+import java.util.List;
+
+import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
+@Getter
+@Setter
 @Builder
-public class CollaborationResponse {
+@NoArgsConstructor
+@AllArgsConstructor
+public class PendingCollaborationResponse {
 
-    private Integer collaborationId;
-    private Integer projectId;
-    private Integer idPengguna; // user yang request
-    private String role;
     private String status;
-
     private ProjectDetail project;
-    private OwnerDetail owner;
+    private List<PendingCollaborationUserResponse> collaborators;
 
-    @Data
+    @Getter
+    @Setter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ProjectDetail {
         private Integer projectId;
         private String title;
@@ -26,13 +32,5 @@ public class CollaborationResponse {
         private String status;
         private String repositoryLink;
         private String fileUrl;
-    }
-
-    @Data
-    @Builder
-    public static class OwnerDetail {
-        private Integer idPengguna;
-        private String namaLengkap;
-        private String email;
     }
 }
