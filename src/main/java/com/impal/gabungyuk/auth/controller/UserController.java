@@ -73,39 +73,42 @@ public class UserController {
                 .build();
     }
 
-  @PatchMapping(
-    value = "/api/v1/update/users/current",
-    consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-    produces = MediaType.APPLICATION_JSON_VALUE
-)
-public SuccessResponse<AuthUserResponse> updateUser(
-    @RequestHeader("Authorization") String authorizationHeader,
-    @RequestPart(value = "data", required = false) String dataJson,
-    @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture
-) {
-    ObjectMapper mapper = new ObjectMapper();
-    UpdateUserRequest request = null;
-    
-    if (dataJson != null && !dataJson.isEmpty()) {
-        try {
-            request = mapper.readValue(dataJson, UpdateUserRequest.class);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid JSON: " + e.getMessage());
+    @PatchMapping(
+            value = "/api/v1/update/users/current",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public SuccessResponse<AuthUserResponse> updateUser(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestPart(value = "data", required = false) String dataJson,
+            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture
+    ) {
+        ObjectMapper mapper = new ObjectMapper();
+        UpdateUserRequest request = new UpdateUserRequest();
+
+        if (dataJson != null && !dataJson.isBlank()) {
+            try {
+                request = mapper.readValue(dataJson, UpdateUserRequest.class);
+            } catch (Exception e) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid JSON: " + e.getMessage()
+                );
+            }
         }
+
+        AuthUserResponse response = userService.updateCurrentUser(
+                authorizationHeader,
+                request,
+                profilePicture
+        );
+
+        return SuccessResponse.<AuthUserResponse>builder()
+                .status(200)
+                .message("Update user successful")
+                .data(response)
+                .build();
     }
-    
-    AuthUserResponse response = userService.updateCurrentUser(
-        authorizationHeader,
-        request,
-        profilePicture
-    );
-    
-    return SuccessResponse.<AuthUserResponse>builder()
-        .status(200)
-        .message("Update user successful")
-        .data(response)
-        .build();
-}
 
 
     @DeleteMapping(

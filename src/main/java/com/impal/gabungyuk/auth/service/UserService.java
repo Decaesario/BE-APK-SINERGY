@@ -116,13 +116,23 @@ public class UserService {
     }
 
     @Transactional
-    public AuthUserResponse updateCurrentUser(String authorizationHeader, UpdateUserRequest request, MultipartFile profilePicture) {
+    public AuthUserResponse updateCurrentUser(
+            String authorizationHeader,
+            UpdateUserRequest request,
+            MultipartFile profilePicture
+    ) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "User not found"
+                ));
 
-        // Pengecekan hanya berdasarkan nullability agar "" (string kosong) tetap diproses
+        if (request == null) {
+            request = new UpdateUserRequest();
+        }
+
         boolean hasNamaLengkap = request.getNamaLengkap() != null;
         boolean hasEmail = request.getEmail() != null;
         boolean hasPassword = request.getPassword() != null;
@@ -135,34 +145,57 @@ public class UserService {
         boolean hasInstagram = request.getInstagram() != null;
         boolean hasFacebook = request.getFacebook() != null;
         boolean hasLinkedin = request.getLinkedin() != null;
-        // Validasi minimal ada satu field yang dikirim (bisa berupa string kosong)
+
         if (!hasNamaLengkap && !hasEmail && !hasPassword && !hasProfilePicture
-                && !hasInstitusi && !hasBio && !hasKeahlian && !hasLokasi && !hasWhatsapp && !hasInstagram && !hasFacebook && !hasLinkedin) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one field must be provided");
+                && !hasInstitusi && !hasBio && !hasKeahlian && !hasLokasi
+                && !hasWhatsapp && !hasInstagram && !hasFacebook && !hasLinkedin) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "At least one field must be provided"
+            );
         }
 
         if (hasNamaLengkap) {
             user.setNamaLengkap(request.getNamaLengkap().trim());
         }
 
-        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+        if (hasEmail) {
             String email = request.getEmail().trim();
 
-            // Cek duplikat email hanya jika email-nya berubah
-            if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
+            if (!email.isBlank()) {
+                if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "Email already exists"
+                    );
+                }
+
+                user.setEmail(email);
             }
-            user.setEmail(email);
         }
 
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            user.setPassword(request.getPassword());
-        } // Jika password kosong, password lama di database tidak akan berubah.
+        if (hasPassword) {
+            String password = request.getPassword();
+
+            if (!password.isBlank()) {
+                user.setPassword(password);
+            }
+        }
 
         if (hasProfilePicture) {
             try {
-                String fileName = System.currentTimeMillis() + "_" + profilePicture.getOriginalFilename();
+                String originalFilename = profilePicture.getOriginalFilename();
+
+                if (originalFilename == null || originalFilename.isBlank()) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Invalid profile picture filename"
+                    );
+                }
+
+                String fileName = System.currentTimeMillis() + "_" + originalFilename;
                 String uploadDir = System.getProperty("user.home") + "/uploads/profile";
+
                 Path uploadPath = Paths.get(uploadDir);
 
                 if (!Files.exists(uploadPath)) {
@@ -170,19 +203,28 @@ public class UserService {
                 }
 
                 Path filePath = uploadPath.resolve(fileName);
-                Files.copy(profilePicture.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                Files.copy(
+                        profilePicture.getInputStream(),
+                        filePath,
+                        StandardCopyOption.REPLACE_EXISTING
+                );
 
                 user.setProfilePicture("/uploads/profile/" + fileName);
+
+            } catch (ResponseStatusException e) {
+                throw e;
             } catch (Exception e) {
-                e.printStackTrace();
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
-                    "Failed to upload profile picture: " + e.getMessage());
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Failed to upload profile picture: " + e.getMessage()
+                );
             }
-        } else {
-            user.setProfilePicture(null);
         }
 
-        // Bagian di bawah ini sekarang bisa menerima string kosong untuk mengosongkan data di DB
+        // Jangan pakai else user.setProfilePicture(null)
+        // Karena kalau tidak upload foto, foto lama tetap dipertahankan.
+
         if (hasInstitusi) {
             user.setInstitusi(request.getInstitusi().trim());
         }
