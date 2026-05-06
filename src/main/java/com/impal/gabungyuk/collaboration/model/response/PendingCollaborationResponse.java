@@ -31,6 +31,6 @@ public class PendingCollaborationResponse {
         private String category;
         private String status;
         private String repositoryLink;
-        private String fileUrl;
+        private String projectPicture;
     }
 }

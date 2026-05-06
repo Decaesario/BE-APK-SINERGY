@@ -275,7 +275,7 @@ public class CollaborationService {
                         .category(project.getCategory())
                         .status(project.getStatus())
                         .repositoryLink(project.getRepositoryLink())
-                        .fileUrl(project.getFileUrl())
+                        .projectPicture(project.getFileUrl())
                         .build())
                 .toList();
 
@@ -300,6 +300,9 @@ public class CollaborationService {
                 .keahlian(profile.getKeahlian())
                 .lokasi(profile.getLokasi())
                 .whatsapp(profile.getWhatsapp())
+                .instagram(profile.getInstagram())
+                .facebook(profile.getFacebook())
+                .linkedin(profile.getLinkedin())
                 .role(collaboration.getRole())
                 .status(collaboration.getStatus())
                 .requestStatus(collaboration.getStatus())
@@ -315,11 +318,14 @@ public class CollaborationService {
                 .category(project.getCategory())
                 .status(project.getStatus())
                 .repositoryLink(project.getRepositoryLink())
-                .fileUrl(project.getFileUrl())
+                .projectPicture(project.getFileUrl())
                 .build();
     }
 
     private CollaborationResponse mapToResponse(Collaboration collaboration, Project project) {
+        Profile ownerProfile = profileRepository.findByIdPengguna(project.getUser().getIdPengguna())
+                .orElse(null);
+
         return CollaborationResponse.builder()
                 .collaborationId(collaboration.getCollaborationId())
                 .projectId(collaboration.getProjectId())
@@ -333,12 +339,13 @@ public class CollaborationService {
                         .category(project.getCategory())
                         .status(project.getStatus())
                         .repositoryLink(project.getRepositoryLink())
-                        .fileUrl(project.getFileUrl())
+                        .projectPicture(project.getFileUrl())
                         .build())
                 .owner(CollaborationResponse.OwnerDetail.builder()
                         .idPengguna(project.getUser().getIdPengguna())
                         .namaLengkap(project.getUser().getNamaLengkap())
                         .email(project.getUser().getEmail())
+                        .profilePicture(ownerProfile != null ? ownerProfile.getProfilePicture() : null)
                         .build())
                 .build();
     }

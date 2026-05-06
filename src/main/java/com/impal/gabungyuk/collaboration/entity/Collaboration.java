@@ -1,6 +1,5 @@
 package com.impal.gabungyuk.collaboration.entity;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.impal.gabungyuk.project.entity.Project;
