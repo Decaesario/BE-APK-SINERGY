@@ -1,6 +1,5 @@
 package com.impal.gabungyuk.project.model.request;
 
-import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

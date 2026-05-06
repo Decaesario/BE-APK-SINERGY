@@ -27,6 +27,10 @@ public class PendingCollaborationUserResponse {
     private String lokasi;
     private String whatsapp;
 
+    private String instagram;
+    private String facebook;
+    private String linkedin;
+
     private String role;
     private String status;
 

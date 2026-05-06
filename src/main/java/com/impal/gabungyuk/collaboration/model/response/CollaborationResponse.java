@@ -9,7 +9,7 @@ public class CollaborationResponse {
 
     private Integer collaborationId;
     private Integer projectId;
-    private Integer idPengguna; // user yang request
+    private Integer idPengguna;
     private String role;
     private String status;
 
@@ -25,7 +25,7 @@ public class CollaborationResponse {
         private String category;
         private String status;
         private String repositoryLink;
-        private String fileUrl;
+        private String projectPicture;
     }
 
     @Data
@@ -34,5 +34,6 @@ public class CollaborationResponse {
         private Integer idPengguna;
         private String namaLengkap;
         private String email;
+        private String profilePicture;
     }
 }

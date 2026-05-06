@@ -13,6 +13,8 @@ import com.impal.gabungyuk.project.model.request.ProjectRequest;
 import com.impal.gabungyuk.project.model.response.ProjectResponse;
 import com.impal.gabungyuk.project.respository.ProjectRepository;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,16 +37,27 @@ public class ProjectService {
     }
 
     public ProjectResponse createProject(
+            HttpServletRequest requestHttp,
             ProjectRequest projectRequest,
             String authorizationHeader,
-            MultipartFile file
+            MultipartFile pictureProject
     ) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String fileUrl = uploadProjectFile(file, projectRequest.getFileUrl());
+        if (projectRequest.getTitle() == null || projectRequest.getTitle().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project title is required");
+        }
+
+        String fileUrl;
+
+        if (pictureProject != null && !pictureProject.isEmpty()) {
+            fileUrl = uploadProjectFile(requestHttp, pictureProject);
+        } else {
+            fileUrl = buildFullUrlIfNeeded(requestHttp, projectRequest.getFileUrl());
+        }
 
         Project project = Project.builder()
                 .user(user)
@@ -63,10 +76,11 @@ public class ProjectService {
     }
 
     public ProjectResponse updateProject(
+            HttpServletRequest requestHttp,
             Integer projectId,
             ProjectRequest projectRequest,
             String authorizationHeader,
-            MultipartFile file
+            MultipartFile pictureProject
     ) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
@@ -80,20 +94,31 @@ public class ProjectService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to edit this project");
         }
 
-        String fileUrl = project.getFileUrl();
-
-        if (file != null && !file.isEmpty()) {
-            fileUrl = uploadProjectFile(file, project.getFileUrl());
-        } else if (projectRequest.getFileUrl() != null) {
-            fileUrl = projectRequest.getFileUrl();
+        if (projectRequest.getTitle() != null) {
+            project.setTitle(projectRequest.getTitle());
         }
 
-        project.setTitle(projectRequest.getTitle());
-        project.setDescription(projectRequest.getDescription());
-        project.setCategory(projectRequest.getCategory());
-        project.setStatus(projectRequest.getStatus());
-        project.setRepositoryLink(projectRequest.getRepositoryLink());
-        project.setFileUrl(fileUrl);
+        if (projectRequest.getDescription() != null) {
+            project.setDescription(projectRequest.getDescription());
+        }
+
+        if (projectRequest.getCategory() != null) {
+            project.setCategory(projectRequest.getCategory());
+        }
+
+        if (projectRequest.getStatus() != null) {
+            project.setStatus(projectRequest.getStatus());
+        }
+
+        if (projectRequest.getRepositoryLink() != null) {
+            project.setRepositoryLink(projectRequest.getRepositoryLink());
+        }
+
+        if (pictureProject != null && !pictureProject.isEmpty()) {
+            project.setFileUrl(uploadProjectFile(requestHttp, pictureProject));
+        } else if (projectRequest.getFileUrl() != null) {
+            project.setFileUrl(buildFullUrlIfNeeded(requestHttp, projectRequest.getFileUrl()));
+        }
 
         Project updatedProject = projectRepository.save(project);
 
@@ -151,11 +176,10 @@ public class ProjectService {
         projectRepository.delete(project);
     }
 
-    private String uploadProjectFile(MultipartFile file, String currentFileUrl) {
-        if (file == null || file.isEmpty()) {
-            return currentFileUrl;
-        }
-
+    private String uploadProjectFile(
+            HttpServletRequest requestHttp,
+            MultipartFile pictureProject
+    ) {
         try {
             String uploadDir = "uploads/projects/";
             java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
@@ -164,24 +188,59 @@ public class ProjectService {
                 java.nio.file.Files.createDirectories(uploadPath);
             }
 
-            String originalFilename = file.getOriginalFilename();
-            String fileName = System.currentTimeMillis() + "_" + originalFilename;
+            String originalFilename = pictureProject.getOriginalFilename();
+
+            if (originalFilename == null || originalFilename.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Project picture filename is invalid"
+                );
+            }
+
+            String safeFileName = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
+            String fileName = System.currentTimeMillis() + "_" + safeFileName;
 
             java.nio.file.Path filePath = uploadPath.resolve(fileName);
 
             java.nio.file.Files.copy(
-                    file.getInputStream(),
+                    pictureProject.getInputStream(),
                     filePath,
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING
             );
 
-            return "/" + uploadDir + fileName;
+            return getBaseUrl(requestHttp) + "/uploads/projects/" + fileName;
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to upload project file"
+                    "Failed to upload project picture"
             );
         }
+    }
+
+    private String buildFullUrlIfNeeded(HttpServletRequest requestHttp, String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return null;
+        }
+
+        if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+            return fileUrl;
+        }
+
+        if (fileUrl.startsWith("/")) {
+            return getBaseUrl(requestHttp) + fileUrl;
+        }
+
+        return getBaseUrl(requestHttp) + "/" + fileUrl;
+    }
+
+    private String getBaseUrl(HttpServletRequest requestHttp) {
+        return requestHttp.getScheme()
+                + "://"
+                + requestHttp.getServerName()
+                + ":"
+                + requestHttp.getServerPort();
     }
 
     private ProjectResponse mapToResponse(Project project) {
@@ -192,7 +251,7 @@ public class ProjectService {
                 .category(project.getCategory())
                 .status(project.getStatus())
                 .repositoryLink(project.getRepositoryLink())
-                .fileUrl(project.getFileUrl())
+                .projectPicture(project.getFileUrl())
                 .build();
     }
 }
