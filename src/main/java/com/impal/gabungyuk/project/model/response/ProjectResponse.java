@@ -17,4 +17,5 @@ public class ProjectResponse {
     private String status;
     private String repositoryLink;
     private String projectPicture;
+    private UserOwnerResponse owner;
 }

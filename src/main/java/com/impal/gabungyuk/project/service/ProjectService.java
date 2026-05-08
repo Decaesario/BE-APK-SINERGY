@@ -2,6 +2,7 @@ package com.impal.gabungyuk.project.service;
 
 import com.impal.gabungyuk.Activitylog.service.ActivityLogService;
 
+import com.impal.gabungyuk.project.model.response.UserOwnerResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -259,6 +260,16 @@ public class ProjectService {
     }
 
     private ProjectResponse mapToResponse(Project project) {
+        UserOwnerResponse owner = null;
+        if (project.getUser() != null) {
+            owner = UserOwnerResponse.builder()
+                    .id(project.getUser().getIdPengguna())
+                    .fullName(project.getUser().getNamaLengkap())
+                    .email(project.getUser().getEmail())
+                    .profilePicture(project.getUser().getProfilePicture())
+                    .build();
+        }
+        
         return ProjectResponse.builder()
                 .id(project.getProjectId())
                 .title(project.getTitle())
@@ -267,6 +278,7 @@ public class ProjectService {
                 .status(project.getStatus())
                 .repositoryLink(project.getRepositoryLink())
                 .projectPicture(project.getFileUrl())
+                .owner(owner)
                 .build();
     }
 }
