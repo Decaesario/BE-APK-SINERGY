@@ -22,6 +22,7 @@ import com.impal.gabungyuk.profile.repository.ProfileRepository;
 import com.impal.gabungyuk.project.entity.Project;
 import com.impal.gabungyuk.project.model.response.ProjectResponse;
 import com.impal.gabungyuk.project.respository.ProjectRepository;
+import com.impal.gabungyuk.Activitylog.service.ActivityLogService;
 
 @Service
 public class CollaborationService {
@@ -31,19 +32,22 @@ public class CollaborationService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final ProfileRepository profileRepository;
+    private final ActivityLogService activityLogService;
 
     public CollaborationService(
             CollaborationRepository collaborationRepository,
             TokenService tokenService,
             UserRepository userRepository,
             ProjectRepository projectRepository,
-            ProfileRepository profileRepository
+            ProfileRepository profileRepository,
+            ActivityLogService activityLogService //penambahan log aktivitas
     ) {
         this.collaborationRepository = collaborationRepository;
         this.tokenService = tokenService;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.profileRepository = profileRepository;
+        this.activityLogService = activityLogService;
     }
 
     public CollaborationResponse requestCollaboration(Integer projectId, String authorizationHeader) {
@@ -94,7 +98,8 @@ public class CollaborationService {
                 .build();
 
         Collaboration saved = collaborationRepository.save(collaboration);
-
+        //penambahan log aktivitas      
+        activityLogService.log(user, project, "Requested collaboration: " + collaboration.getRole());
         return mapToResponse(saved, project);
     }
 
@@ -167,6 +172,12 @@ public class CollaborationService {
         }
 
         Collaboration updated = collaborationRepository.save(collaboration);
+        //penambahan log aktivitas      
+        activityLogService.log(
+                userRepository.findById(ownerId).orElseThrow(),
+                project,
+                request.getAction() + " collaboration on project: " + project.getTitle()
+        );
 
         Profile profile = profileRepository.findByIdPengguna(updated.getIdPengguna())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profile not found"));
