@@ -15,6 +15,6 @@ public class ActivityLogResponse {
     private Integer projectId;
     private String message;
     private Boolean isRead;
-    @JsonFormat(pattern = "HH:mm:ss - dd/MM/yyyy")
+    @JsonFormat(pattern = "HH:mm:ss - dd/MM/yyyy", timezone = "Asia/Jakarta")
     private LocalDateTime timestamp;
 }
