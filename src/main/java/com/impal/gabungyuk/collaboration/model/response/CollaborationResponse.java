@@ -1,5 +1,7 @@
 package com.impal.gabungyuk.collaboration.model.response;
 
+import java.time.LocalDateTime;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -26,6 +28,7 @@ public class CollaborationResponse {
         private String status;
         private String repositoryLink;
         private String projectPicture;
+        private LocalDateTime deadline;
     }
 
     @Data

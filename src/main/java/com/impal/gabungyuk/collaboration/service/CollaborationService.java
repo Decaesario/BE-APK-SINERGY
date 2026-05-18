@@ -27,337 +27,335 @@ import com.impal.gabungyuk.Activitylog.service.ActivityLogService;
 @Service
 public class CollaborationService {
 
-    private final CollaborationRepository collaborationRepository;
-    private final TokenService tokenService;
-    private final UserRepository userRepository;
-    private final ProjectRepository projectRepository;
-    private final ProfileRepository profileRepository;
-    private final ActivityLogService activityLogService;
+        private final CollaborationRepository collaborationRepository;
+        private final TokenService tokenService;
+        private final UserRepository userRepository;
+        private final ProjectRepository projectRepository;
+        private final ProfileRepository profileRepository;
+        private final ActivityLogService activityLogService;
 
-    public CollaborationService(
-            CollaborationRepository collaborationRepository,
-            TokenService tokenService,
-            UserRepository userRepository,
-            ProjectRepository projectRepository,
-            ProfileRepository profileRepository,
-            ActivityLogService activityLogService //penambahan log aktivitas
-    ) {
-        this.collaborationRepository = collaborationRepository;
-        this.tokenService = tokenService;
-        this.userRepository = userRepository;
-        this.projectRepository = projectRepository;
-        this.profileRepository = profileRepository;
-        this.activityLogService = activityLogService;
-    }
-
-    public CollaborationResponse requestCollaboration(Integer projectId, String authorizationHeader) {
-        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
-        Profile profile = profileRepository.findByIdPengguna(user.getIdPengguna())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profile not found"));
-
-        if (profile.getKeahlian() == null || profile.getKeahlian().isBlank()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Please set your skill/role in profile first"
-            );
+        public CollaborationService(
+                        CollaborationRepository collaborationRepository,
+                        TokenService tokenService,
+                        UserRepository userRepository,
+                        ProjectRepository projectRepository,
+                        ProfileRepository profileRepository,
+                        ActivityLogService activityLogService // penambahan log aktivitas
+        ) {
+                this.collaborationRepository = collaborationRepository;
+                this.tokenService = tokenService;
+                this.userRepository = userRepository;
+                this.projectRepository = projectRepository;
+                this.profileRepository = profileRepository;
+                this.activityLogService = activityLogService;
         }
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        public CollaborationResponse requestCollaboration(Integer projectId, String authorizationHeader) {
+                Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        if (project.getUser().getIdPengguna().equals(userId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "You cannot request collaboration on your own project"
-            );
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+                Profile profile = profileRepository.findByIdPengguna(user.getIdPengguna())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Profile not found"));
+
+                if (profile.getKeahlian() == null || profile.getKeahlian().isBlank()) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Please set your skill/role in profile first");
+                }
+
+                Project project = projectRepository.findById(projectId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Project not found"));
+
+                if (project.getUser().getIdPengguna().equals(userId)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "You cannot request collaboration on your own project");
+                }
+
+                boolean alreadyRequested = collaborationRepository.existsByProjectIdAndIdPenggunaAndStatusIn(
+                                project.getProjectId(),
+                                userId,
+                                List.of("PENDING", "ACCEPTED"));
+
+                if (alreadyRequested) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.CONFLICT,
+                                        "You have already requested collaboration for this project");
+                }
+
+                Collaboration collaboration = Collaboration.builder()
+                                .projectId(project.getProjectId())
+                                .idPengguna(userId)
+                                .role(profile.getKeahlian())
+                                .status("PENDING")
+                                .joinDate(LocalDateTime.now())
+                                .build();
+
+                Collaboration saved = collaborationRepository.save(collaboration);
+                // penambahan log aktivitas
+                activityLogService.log(user, project, "Requested collaboration: " + collaboration.getRole());
+                return mapToResponse(saved, project);
         }
 
-        boolean alreadyRequested = collaborationRepository.existsByProjectIdAndIdPenggunaAndStatusIn(
-                project.getProjectId(),
-                userId,
-                List.of("PENDING", "ACCEPTED")
-        );
+        public CollaborationResponse getCollaborationById(String authorizationHeader, Integer collaborationId) {
+                Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        if (alreadyRequested) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "You have already requested collaboration for this project"
-            );
+                userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+                Collaboration collaboration = collaborationRepository.findById(collaborationId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Collaboration not found"));
+
+                Project project = projectRepository.findById(collaboration.getProjectId())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Project not found"));
+
+                return mapToResponse(collaboration, project);
         }
 
-        Collaboration collaboration = Collaboration.builder()
-                .projectId(project.getProjectId())
-                .idPengguna(userId)
-                .role(profile.getKeahlian())
-                .status("PENDING")
-                .joinDate(LocalDateTime.now())
-                .build();
+        public PendingCollaborationResponse acceptOrDeclineCollaboration(
+                        String authorizationHeader,
+                        CollaborationRequest request) {
+                Integer ownerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        Collaboration saved = collaborationRepository.save(collaboration);
-        //penambahan log aktivitas      
-        activityLogService.log(user, project, "Requested collaboration: " + collaboration.getRole());
-        return mapToResponse(saved, project);
-    }
+                userRepository.findById(ownerId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-    public CollaborationResponse getCollaborationById(String authorizationHeader, Integer collaborationId) {
-        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+                if (request.getProjectId() == null) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project id is required");
+                }
 
-        userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                if (request.getUserId() == null) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User id is required");
+                }
 
-        Collaboration collaboration = collaborationRepository.findById(collaborationId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Collaboration not found"));
+                if (request.getAction() == null || request.getAction().isBlank()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Action is required");
+                }
 
-        Project project = projectRepository.findById(collaboration.getProjectId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+                Project project = projectRepository.findById(request.getProjectId())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Project not found"));
 
-        return mapToResponse(collaboration, project);
-    }
+                if (!project.getUser().getIdPengguna().equals(ownerId)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Only project owner can accept or decline");
+                }
 
-    public PendingCollaborationResponse acceptOrDeclineCollaboration(
-            String authorizationHeader,
-            CollaborationRequest request
-    ) {
-        Integer ownerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+                Collaboration collaboration = collaborationRepository
+                                .findByProjectIdAndIdPenggunaAndStatus(
+                                                request.getProjectId(),
+                                                request.getUserId(),
+                                                "PENDING")
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Pending collaboration request not found"));
 
-        userRepository.findById(ownerId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                if (request.getAction().equalsIgnoreCase("ACCEPT")) {
+                        collaboration.setStatus("ACCEPTED");
+                } else if (request.getAction().equalsIgnoreCase("DECLINE")) {
+                        collaboration.setStatus("DECLINED");
+                } else {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Invalid action. Use ACCEPT or DECLINE");
+                }
 
-        if (request.getProjectId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project id is required");
+                Collaboration updated = collaborationRepository.save(collaboration);
+                // penambahan log aktivitas
+                activityLogService.log(
+                                userRepository.findById(ownerId).orElseThrow(),
+                                project,
+                                request.getAction() + " collaboration on project: " + project.getTitle());
+
+                Profile profile = profileRepository.findByIdPengguna(updated.getIdPengguna())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Profile not found"));
+
+                PendingCollaborationUserResponse collaborator = buildPendingUserResponse(updated, profile);
+
+                return PendingCollaborationResponse.builder()
+                                .status(updated.getStatus().toLowerCase())
+                                .project(mapProjectDetail(project))
+                                .collaborators(List.of(collaborator))
+                                .build();
         }
 
-        if (request.getUserId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User id is required");
+        public PendingCollaborationResponse getPendingCollaborationUsers(
+                        String authorizationHeader,
+                        Integer projectId) {
+                Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+
+                userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+                Project project = projectRepository.findById(projectId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Project not found"));
+
+                if (!project.getUser().getIdPengguna().equals(userId)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Only project owner can view pending collaboration requests");
+                }
+
+                List<PendingCollaborationUserResponse> pendingUsers = collaborationRepository
+                                .findByProjectIdAndStatus(projectId, "PENDING")
+                                .stream()
+                                .map(collaboration -> {
+                                        Profile profile = profileRepository
+                                                        .findByIdPengguna(collaboration.getIdPengguna())
+                                                        .orElseThrow(() -> new ResponseStatusException(
+                                                                        HttpStatus.NOT_FOUND,
+                                                                        "Profile not found"));
+
+                                        return buildPendingUserResponse(collaboration, profile);
+                                })
+                                .toList();
+
+                return PendingCollaborationResponse.builder()
+                                .status("pending")
+                                .project(mapProjectDetail(project))
+                                .collaborators(pendingUsers)
+                                .build();
         }
 
-        if (request.getAction() == null || request.getAction().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Action is required");
+        public PendingCollaborationResponse getProjectCollaborators(
+                        String authorizationHeader,
+                        Integer projectId) {
+                tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+
+                Project project = projectRepository.findById(projectId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Project not found"));
+
+                List<PendingCollaborationUserResponse> collaborators = collaborationRepository
+                                .findByProjectIdAndStatus(projectId, "ACCEPTED")
+                                .stream()
+                                .map(collaboration -> {
+                                        Profile profile = profileRepository
+                                                        .findByIdPengguna(collaboration.getIdPengguna())
+                                                        .orElseThrow(() -> new ResponseStatusException(
+                                                                        HttpStatus.NOT_FOUND,
+                                                                        "Profile not found"));
+
+                                        return buildPendingUserResponse(collaboration, profile);
+                                })
+                                .toList();
+
+                return PendingCollaborationResponse.builder()
+                                .status("accepted")
+                                .project(mapProjectDetail(project))
+                                .collaborators(collaborators)
+                                .build();
         }
 
-        Project project = projectRepository.findById(request.getProjectId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        public CollaborationDashboardResponse getDashboard(String authorizationHeader) {
+                Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        if (!project.getUser().getIdPengguna().equals(ownerId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Only project owner can accept or decline"
-            );
+                userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+                List<CollaborationResponse> requestCollab = collaborationRepository.findByIdPengguna(userId)
+                                .stream()
+                                .map(collaboration -> {
+                                        Project project = projectRepository.findById(collaboration.getProjectId())
+                                                        .orElseThrow(() -> new ResponseStatusException(
+                                                                        HttpStatus.NOT_FOUND, "Project not found"));
+
+                                        return mapToResponse(collaboration, project);
+                                })
+                                .toList();
+
+                List<ProjectResponse> ownedProjects = projectRepository.findByUser_IdPengguna(userId)
+                                .stream()
+                                .map(project -> ProjectResponse.builder()
+                                                .id(project.getProjectId())
+                                                .title(project.getTitle())
+                                                .description(project.getDescription())
+                                                .category(project.getCategory())
+                                                .status(project.getStatus())
+                                                .repositoryLink(project.getRepositoryLink())
+                                                .projectPicture(project.getFileUrl())
+                                                .build())
+                                .toList();
+
+                return CollaborationDashboardResponse.builder()
+                                .requestCollab(requestCollab)
+                                .ownedProjects(ownedProjects)
+                                .build();
         }
 
-        Collaboration collaboration = collaborationRepository
-                .findByProjectIdAndIdPenggunaAndStatus(
-                        request.getProjectId(),
-                        request.getUserId(),
-                        "PENDING"
-                )
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Pending collaboration request not found"
-                ));
-
-        if (request.getAction().equalsIgnoreCase("ACCEPT")) {
-            collaboration.setStatus("ACCEPTED");
-        } else if (request.getAction().equalsIgnoreCase("DECLINE")) {
-            collaboration.setStatus("DECLINED");
-        } else {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invalid action. Use ACCEPT or DECLINE"
-            );
+        private PendingCollaborationUserResponse buildPendingUserResponse(
+                        Collaboration collaboration,
+                        Profile profile) {
+                return PendingCollaborationUserResponse.builder()
+                                .collaborationId(collaboration.getCollaborationId())
+                                .idPengguna(collaboration.getIdPengguna())
+                                .namaLengkap(profile.getNamaLengkap())
+                                .email(profile.getEmail())
+                                .profilePicture(profile.getProfilePicture())
+                                .institusi(profile.getInstitusi())
+                                .bio(profile.getBio())
+                                .keahlian(profile.getKeahlian())
+                                .lokasi(profile.getLokasi())
+                                .whatsapp(profile.getWhatsapp())
+                                .instagram(profile.getInstagram())
+                                .facebook(profile.getFacebook())
+                                .linkedin(profile.getLinkedin())
+                                .role(collaboration.getRole())
+                                .status(collaboration.getStatus())
+                                .requestStatus(collaboration.getStatus())
+                                .requestedAt(collaboration.getJoinDate())
+                                .build();
         }
 
-        Collaboration updated = collaborationRepository.save(collaboration);
-        //penambahan log aktivitas      
-        activityLogService.log(
-                userRepository.findById(ownerId).orElseThrow(),
-                project,
-                request.getAction() + " collaboration on project: " + project.getTitle()
-        );
-
-        Profile profile = profileRepository.findByIdPengguna(updated.getIdPengguna())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profile not found"));
-
-        PendingCollaborationUserResponse collaborator = buildPendingUserResponse(updated, profile);
-
-        return PendingCollaborationResponse.builder()
-                .status(updated.getStatus().toLowerCase())
-                .project(mapProjectDetail(project))
-                .collaborators(List.of(collaborator))
-                .build();
-    }
-
-    public PendingCollaborationResponse getPendingCollaborationUsers(
-            String authorizationHeader,
-            Integer projectId
-    ) {
-        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
-
-        userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
-
-        if (!project.getUser().getIdPengguna().equals(userId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Only project owner can view pending collaboration requests"
-            );
+        private PendingCollaborationResponse.ProjectDetail mapProjectDetail(Project project) {
+                return PendingCollaborationResponse.ProjectDetail.builder()
+                                .projectId(project.getProjectId())
+                                .title(project.getTitle())
+                                .description(project.getDescription())
+                                .category(project.getCategory())
+                                .status(project.getStatus())
+                                .repositoryLink(project.getRepositoryLink())
+                                .projectPicture(project.getFileUrl())
+                                .deadline(project.getDeadline())
+                                .build();
         }
 
-        List<PendingCollaborationUserResponse> pendingUsers = collaborationRepository
-                .findByProjectIdAndStatus(projectId, "PENDING")
-                .stream()
-                .map(collaboration -> {
-                    Profile profile = profileRepository.findByIdPengguna(collaboration.getIdPengguna())
-                            .orElseThrow(() -> new ResponseStatusException(
-                                    HttpStatus.NOT_FOUND,
-                                    "Profile not found"
-                            ));
+        private CollaborationResponse mapToResponse(Collaboration collaboration, Project project) {
+                Profile ownerProfile = profileRepository.findByIdPengguna(project.getUser().getIdPengguna())
+                                .orElse(null);
 
-                    return buildPendingUserResponse(collaboration, profile);
-                })
-                .toList();
-
-        return PendingCollaborationResponse.builder()
-                .status("pending")
-                .project(mapProjectDetail(project))
-                .collaborators(pendingUsers)
-                .build();
-    }
-
-    public PendingCollaborationResponse getProjectCollaborators(
-            String authorizationHeader,
-            Integer projectId
-    ) {
-        tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
-
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
-
-        List<PendingCollaborationUserResponse> collaborators = collaborationRepository
-                .findByProjectIdAndStatus(projectId, "ACCEPTED")
-                .stream()
-                .map(collaboration -> {
-                    Profile profile = profileRepository.findByIdPengguna(collaboration.getIdPengguna())
-                            .orElseThrow(() -> new ResponseStatusException(
-                                    HttpStatus.NOT_FOUND,
-                                    "Profile not found"
-                            ));
-
-                    return buildPendingUserResponse(collaboration, profile);
-                })
-                .toList();
-
-        return PendingCollaborationResponse.builder()
-                .status("accepted")
-                .project(mapProjectDetail(project))
-                .collaborators(collaborators)
-                .build();
-    }
-
-    public CollaborationDashboardResponse getDashboard(String authorizationHeader) {
-        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
-
-        userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
-        List<CollaborationResponse> requestCollab = collaborationRepository.findByIdPengguna(userId)
-                .stream()
-                .map(collaboration -> {
-                    Project project = projectRepository.findById(collaboration.getProjectId())
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
-
-                    return mapToResponse(collaboration, project);
-                })
-                .toList();
-
-        List<ProjectResponse> ownedProjects = projectRepository.findByUser_IdPengguna(userId)
-                .stream()
-                .map(project -> ProjectResponse.builder()
-                        .id(project.getProjectId())
-                        .title(project.getTitle())
-                        .description(project.getDescription())
-                        .category(project.getCategory())
-                        .status(project.getStatus())
-                        .repositoryLink(project.getRepositoryLink())
-                        .projectPicture(project.getFileUrl())
-                        .build())
-                .toList();
-
-        return CollaborationDashboardResponse.builder()
-                .requestCollab(requestCollab)
-                .ownedProjects(ownedProjects)
-                .build();
-    }
-
-    private PendingCollaborationUserResponse buildPendingUserResponse(
-            Collaboration collaboration,
-            Profile profile
-    ) {
-        return PendingCollaborationUserResponse.builder()
-                .collaborationId(collaboration.getCollaborationId())
-                .idPengguna(collaboration.getIdPengguna())
-                .namaLengkap(profile.getNamaLengkap())
-                .email(profile.getEmail())
-                .profilePicture(profile.getProfilePicture())
-                .institusi(profile.getInstitusi())
-                .bio(profile.getBio())
-                .keahlian(profile.getKeahlian())
-                .lokasi(profile.getLokasi())
-                .whatsapp(profile.getWhatsapp())
-                .instagram(profile.getInstagram())
-                .facebook(profile.getFacebook())
-                .linkedin(profile.getLinkedin())
-                .role(collaboration.getRole())
-                .status(collaboration.getStatus())
-                .requestStatus(collaboration.getStatus())
-                .requestedAt(collaboration.getJoinDate())
-                .build();
-    }
-
-    private PendingCollaborationResponse.ProjectDetail mapProjectDetail(Project project) {
-        return PendingCollaborationResponse.ProjectDetail.builder()
-                .projectId(project.getProjectId())
-                .title(project.getTitle())
-                .description(project.getDescription())
-                .category(project.getCategory())
-                .status(project.getStatus())
-                .repositoryLink(project.getRepositoryLink())
-                .projectPicture(project.getFileUrl())
-                .build();
-    }
-
-    private CollaborationResponse mapToResponse(Collaboration collaboration, Project project) {
-        Profile ownerProfile = profileRepository.findByIdPengguna(project.getUser().getIdPengguna())
-                .orElse(null);
-
-        return CollaborationResponse.builder()
-                .collaborationId(collaboration.getCollaborationId())
-                .projectId(collaboration.getProjectId())
-                .idPengguna(collaboration.getIdPengguna())
-                .role(collaboration.getRole())
-                .status(collaboration.getStatus())
-                .project(CollaborationResponse.ProjectDetail.builder()
-                        .projectId(project.getProjectId())
-                        .title(project.getTitle())
-                        .description(project.getDescription())
-                        .category(project.getCategory())
-                        .status(project.getStatus())
-                        .repositoryLink(project.getRepositoryLink())
-                        .projectPicture(project.getFileUrl())
-                        .build())
-                .owner(CollaborationResponse.OwnerDetail.builder()
-                        .idPengguna(project.getUser().getIdPengguna())
-                        .namaLengkap(project.getUser().getNamaLengkap())
-                        .email(project.getUser().getEmail())
-                        .profilePicture(ownerProfile != null ? ownerProfile.getProfilePicture() : null)
-                        .build())
-                .build();
-    }
+                return CollaborationResponse.builder()
+                                .collaborationId(collaboration.getCollaborationId())
+                                .projectId(collaboration.getProjectId())
+                                .idPengguna(collaboration.getIdPengguna())
+                                .role(collaboration.getRole())
+                                .status(collaboration.getStatus())
+                                .project(CollaborationResponse.ProjectDetail.builder()
+                                                .projectId(project.getProjectId())
+                                                .title(project.getTitle())
+                                                .description(project.getDescription())
+                                                .category(project.getCategory())
+                                                .status(project.getStatus())
+                                                .repositoryLink(project.getRepositoryLink())
+                                                .projectPicture(project.getFileUrl())
+                                                .deadline(project.getDeadline())
+                                                .build())
+                                .owner(CollaborationResponse.OwnerDetail.builder()
+                                                .idPengguna(project.getUser().getIdPengguna())
+                                                .namaLengkap(project.getUser().getNamaLengkap())
+                                                .email(project.getUser().getEmail())
+                                                .profilePicture(ownerProfile != null ? ownerProfile.getProfilePicture()
+                                                                : null)
+                                                .build())
+                                .build();
+        }
 }

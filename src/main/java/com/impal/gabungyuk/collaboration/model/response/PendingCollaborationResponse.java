@@ -1,5 +1,6 @@
 package com.impal.gabungyuk.collaboration.model.response;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import lombok.AllArgsConstructor;
@@ -32,5 +33,6 @@ public class PendingCollaborationResponse {
         private String status;
         private String repositoryLink;
         private String projectPicture;
+        private LocalDateTime deadline;
     }
 }

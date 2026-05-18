@@ -1,5 +1,7 @@
 package com.impal.gabungyuk.project.model.response;
 
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,4 +20,5 @@ public class ProjectResponse {
     private String repositoryLink;
     private String projectPicture;
     private UserOwnerResponse owner;
+    private LocalDateTime deadline;
 }

@@ -19,11 +19,11 @@ public class Project {
     @Column(name = "project_id")
     private Integer projectId;
 
-    //foregein key 
+    // foregein key
     @ManyToOne
     @JoinColumn(name = "id_pengguna")
     private User user;
-    
+
     @Column(name = "title", nullable = false)
     private String title;
 
@@ -35,16 +35,17 @@ public class Project {
 
     @Column(name = "status", nullable = true)
     private String status;
-    
+
     @Column(name = "repository_link", nullable = true)
     private String repositoryLink;
 
-     @Column(name = "file_url", nullable = true)
+    @Column(name = "file_url", nullable = true)
     private String fileUrl;
 
-     @Column(name = "created_at", nullable = true)
+    @Column(name = "created_at", nullable = true)
     private LocalDateTime createdAt;
 
-
+    @Column(name = "deadline", nullable = true)
+    private LocalDateTime deadline;
 
 }

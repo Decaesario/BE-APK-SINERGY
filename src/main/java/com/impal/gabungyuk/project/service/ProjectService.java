@@ -22,8 +22,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
-
 @Service
 public class ProjectService {
 
@@ -36,20 +34,19 @@ public class ProjectService {
             ProjectRepository projectRepository,
             UserRepository userRepository,
             TokenService tokenService,
-            ActivityLogService activityLogService //penambahan log aktivitas
+            ActivityLogService activityLogService // penambahan log aktivitas
     ) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.tokenService = tokenService;
-        this.activityLogService = activityLogService; //penambahan log aktivitas
+        this.activityLogService = activityLogService; // penambahan log aktivitas
     }
 
     public ProjectResponse createProject(
             HttpServletRequest requestHttp,
             ProjectRequest projectRequest,
             String authorizationHeader,
-            MultipartFile pictureProject
-    ) {
+            MultipartFile pictureProject) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         User user = userRepository.findById(userId)
@@ -57,6 +54,11 @@ public class ProjectService {
 
         if (projectRequest.getTitle() == null || projectRequest.getTitle().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project title is required");
+        }
+        if (projectRequest.getDeadline() != null && projectRequest.getDeadline().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Deadline cannot be before current date and time");
         }
 
         String fileUrl;
@@ -75,16 +77,16 @@ public class ProjectService {
                 .status(projectRequest.getStatus())
                 .repositoryLink(projectRequest.getRepositoryLink())
                 .fileUrl(fileUrl)
+                .deadline(projectRequest.getDeadline())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         Project savedProject = projectRepository.save(project);
 
-        //penambahan log aktivitas
+        // penambahan log aktivitas
         activityLogService.log(user, savedProject, "Created project: " + savedProject.getTitle());
         return mapToResponse(savedProject);
 
-        
     }
 
     public ProjectResponse updateProject(
@@ -92,8 +94,7 @@ public class ProjectService {
             Integer projectId,
             ProjectRequest projectRequest,
             String authorizationHeader,
-            MultipartFile pictureProject
-    ) {
+            MultipartFile pictureProject) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         User user = userRepository.findById(userId)
@@ -125,7 +126,15 @@ public class ProjectService {
         if (projectRequest.getRepositoryLink() != null) {
             project.setRepositoryLink(projectRequest.getRepositoryLink());
         }
+        if (projectRequest.getDeadline() != null) {
+            if (projectRequest.getDeadline().isBefore(LocalDateTime.now())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Deadline cannot be before current date and time");
+            }
 
+            project.setDeadline(projectRequest.getDeadline());
+        }
         if (pictureProject != null && !pictureProject.isEmpty()) {
             project.setFileUrl(uploadProjectFile(requestHttp, pictureProject));
         } else if (projectRequest.getFileUrl() != null) {
@@ -134,7 +143,7 @@ public class ProjectService {
 
         Project updatedProject = projectRepository.save(project);
 
-        //penambahan log aktivitas
+        // penambahan log aktivitas
         activityLogService.log(user, updatedProject, "Updated project: " + updatedProject.getTitle());
 
         return mapToResponse(updatedProject);
@@ -155,8 +164,7 @@ public class ProjectService {
 
     public ProjectResponse getProjectByIdForAuthenticatedUser(
             Integer projectId,
-            String authorizationHeader
-    ) {
+            String authorizationHeader) {
         tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         Project project = projectRepository.findById(projectId)
@@ -187,15 +195,14 @@ public class ProjectService {
         if (!project.getUser().getIdPengguna().equals(user.getIdPengguna())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to delete this project");
         }
-         //penambahan log aktivitas
+        // penambahan log aktivitas
         activityLogService.log(user, project, "Deleted project: " + project.getTitle());
         projectRepository.delete(project);
     }
 
     private String uploadProjectFile(
             HttpServletRequest requestHttp,
-            MultipartFile pictureProject
-    ) {
+            MultipartFile pictureProject) {
         try {
             String uploadDir = "uploads/projects/";
             java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
@@ -209,8 +216,7 @@ public class ProjectService {
             if (originalFilename == null || originalFilename.isBlank()) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        "Project picture filename is invalid"
-                );
+                        "Project picture filename is invalid");
             }
 
             String safeFileName = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
@@ -221,8 +227,7 @@ public class ProjectService {
             java.nio.file.Files.copy(
                     pictureProject.getInputStream(),
                     filePath,
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
-            );
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
             return getBaseUrl(requestHttp) + "/uploads/projects/" + fileName;
         } catch (ResponseStatusException e) {
@@ -230,8 +235,7 @@ public class ProjectService {
         } catch (Exception e) {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to upload project picture"
-            );
+                    "Failed to upload project picture");
         }
     }
 
@@ -269,7 +273,7 @@ public class ProjectService {
                     .profilePicture(project.getUser().getProfilePicture())
                     .build();
         }
-        
+
         return ProjectResponse.builder()
                 .id(project.getProjectId())
                 .title(project.getTitle())
@@ -278,6 +282,7 @@ public class ProjectService {
                 .status(project.getStatus())
                 .repositoryLink(project.getRepositoryLink())
                 .projectPicture(project.getFileUrl())
+                .deadline(project.getDeadline())
                 .owner(owner)
                 .build();
     }
