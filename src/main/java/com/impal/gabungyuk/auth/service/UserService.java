@@ -121,11 +121,14 @@ public class UserService {
             User createdUser = userRepository.save(User.builder()
                     .namaLengkap(resolveDisplayName(identity.name(), identity.email()))
                     .email(identity.email())
-                    .password(null)
+                    .password(hashPassword("firebase:" + identity.uid() + ":" + System.nanoTime()))
                     .firebaseUid(identity.uid())
                     .provider(PROVIDER_GOOGLE)
+                    .profilePicture(identity.picture())
                     .build());
-            return buildAuthResponse(createdUser);
+            // Return Firebase ID token to client (client already has it, but return for compatibility)
+            long expiredAt = System.currentTimeMillis() + (1000L * 60 * 60);
+            return buildAuthResponse(createdUser, request.getIdToken(), expiredAt);
         }
 
         if (!identity.email().equals(user.getEmail())) {
@@ -146,11 +149,23 @@ public class UserService {
             shouldSave = true;
         }
 
+        if (identity.name() != null && !identity.name().isBlank() && !identity.name().trim().equals(user.getNamaLengkap())) {
+            user.setNamaLengkap(identity.name().trim());
+            shouldSave = true;
+        }
+
+        if (identity.picture() != null && !identity.picture().isBlank()
+                && !identity.picture().trim().equals(user.getProfilePicture())) {
+            user.setProfilePicture(identity.picture().trim());
+            shouldSave = true;
+        }
+
         if (shouldSave) {
             user = userRepository.save(user);
         }
 
-        return buildAuthResponse(user);
+        long expiredAt = System.currentTimeMillis() + (1000L * 60 * 60);
+        return buildAuthResponse(user, request.getIdToken(), expiredAt);
     }
 
     @Transactional
@@ -265,6 +280,22 @@ public class UserService {
                 .lokasi(user.getLokasi())
                 .whatsapp(user.getWhatsapp())
                 .token(tokenService.generateToken(user.getIdPengguna(), expiredAt))
+                .expiredAt(expiredAt)
+                .build();
+    }
+
+    private AuthUserResponse buildAuthResponse(User user, String token, long expiredAt) {
+        return AuthUserResponse.builder()
+                .userId(user.getIdPengguna())
+                .namaLengkap(user.getNamaLengkap())
+                .email(user.getEmail())
+                .profilePicture(user.getProfilePicture())
+                .institusi(user.getInstitusi())
+                .bio(user.getBio())
+                .keahlian(user.getKeahlian())
+                .lokasi(user.getLokasi())
+                .whatsapp(user.getWhatsapp())
+                .token(token)
                 .expiredAt(expiredAt)
                 .build();
     }

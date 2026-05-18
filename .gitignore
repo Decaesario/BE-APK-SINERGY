@@ -42,4 +42,6 @@ src/main/resources/application*.yml
 .env
 application-local.properties
 .DS_Store
+synergy-38bc6-firebase-adminsdk-fbsvc-6eb7cae339.json
+railway.json
 

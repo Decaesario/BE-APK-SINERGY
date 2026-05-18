@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -66,13 +65,9 @@ public class FirebaseAuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Firebase token does not contain email");
         }
 
-        Object emailVerified = decodedToken.getClaims().get("email_verified");
-        if (emailVerified instanceof Boolean verified && !verified) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google email is not verified");
-        }
-
         String name = decodedToken.getName();
-        return new FirebaseIdentity(decodedToken.getUid(), email.trim().toLowerCase(), name);
+        String picture = decodedToken.getPicture();
+        return new FirebaseIdentity(decodedToken.getUid(), email.trim().toLowerCase(), name, picture);
     }
 
     private FirebaseAuth getFirebaseAuth() {
@@ -112,6 +107,14 @@ public class FirebaseAuthService {
 
         }
 
+    }
+
+    /**
+     * Public accessor for the initialized FirebaseAuth instance. Useful for admin tasks
+     * such as importing or managing users from server-side code.
+     */
+    public FirebaseAuth getFirebaseAuthInstance() {
+        return getFirebaseAuth();
     }
 
     private FirebaseApp getOrCreateFirebaseApp(FirebaseOptions options) {
@@ -302,7 +305,7 @@ public class FirebaseAuthService {
         return value != null && !value.isBlank();
     }
 
-    public record FirebaseIdentity(String uid, String email, String name) {
+    public record FirebaseIdentity(String uid, String email, String name, String picture) {
     }
 
     private record ServiceAccountPath(String path, String source) {
