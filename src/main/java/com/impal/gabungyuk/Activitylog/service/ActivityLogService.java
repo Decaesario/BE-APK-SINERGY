@@ -52,7 +52,7 @@ public class ActivityLogService {
                         .activityLogId(log.getActivityLogId())
                         .namaLengkap(log.getUser().getNamaLengkap())
                         .projectId(log.getProject() != null ? log.getProject().getProjectId() : null)
-                        .message(log.getMessage())
+                        .message(log.getMessage())      
                         .isRead(log.getIsRead())
                         .timestamp(log.getTimestamp())
                         .build())
