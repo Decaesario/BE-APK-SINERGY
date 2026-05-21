@@ -1,6 +1,7 @@
 package com.impal.gabungyuk.project.model.response;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +16,7 @@ public class ProjectResponse {
     private Integer id;
     private String title;
     private String description;
-    private String category;
+    private List<String> category;
     private String status;
     private String repositoryLink;
     private String projectPicture;
