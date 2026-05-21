@@ -9,4 +9,6 @@ import java.util.List;
 public interface ProjectRepository extends JpaRepository<Project, Integer> {
 
     List<Project> findByUser_IdPengguna(Integer idPengguna);
+
+    List<Project> findByTitleContainingIgnoreCase(String title);
 }
