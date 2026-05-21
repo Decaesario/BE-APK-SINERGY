@@ -229,26 +229,62 @@ public class CollaborationService {
                 .build();
     }
 
-    public PendingCollaborationResponse getPendingCollaborationUsers(
-            String authorizationHeader,
-            Integer projectId
-    ) {
+    public CollaborationDashboardResponse getDashboard(String authorizationHeader) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
+        List<CollaborationResponse> requestCollab = collaborationRepository.findByIdPengguna(userId)
+                .stream()
+                .map(collaboration -> {
+                    Project project = projectRepository.findById(collaboration.getProjectId())
+                            .orElseThrow(() -> new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Project not found"
+                            ));
+
+                    return mapToResponse(collaboration, project);
+                })
+                .toList();
+
+        List<ProjectResponse> ownedProjects = projectRepository.findByUser_IdPengguna(userId)
+                .stream()
+                .map(project -> ProjectResponse.builder()
+                        .id(project.getProjectId())
+                        .title(project.getTitle())
+                        .description(project.getDescription())
+                        .category(project.getCategory())
+                        .status(project.getStatus())
+                        .repositoryLink(project.getRepositoryLink())
+                        .projectPicture(project.getFileUrl())
+                        .deadline(project.getDeadline())
+                        .build())
+                .toList();
+
+        return CollaborationDashboardResponse.builder()
+                .requestCollab(requestCollab)
+                .ownedProjects(ownedProjects)
+                .build();
+    }
+
+    public PendingCollaborationResponse getPendingCollaborationUsers(
+            String authorizationHeader,
+            Integer projectId
+    ) {
+        Integer ownerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
 
-        if (!project.getUser().getIdPengguna().equals(userId)) {
+        if (!project.getUser().getIdPengguna().equals(ownerId)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Only project owner can view pending collaboration requests"
             );
         }
 
-        List<PendingCollaborationUserResponse> pendingUsers = collaborationRepository
+        List<PendingCollaborationUserResponse> collaborators = collaborationRepository
                 .findByProjectIdAndStatus(projectId, "PENDING")
                 .stream()
                 .map(collaboration -> {
@@ -265,7 +301,7 @@ public class CollaborationService {
         return PendingCollaborationResponse.builder()
                 .status("pending")
                 .project(mapProjectDetail(project))
-                .collaborators(pendingUsers)
+                .collaborators(collaborators)
                 .build();
     }
 
@@ -296,67 +332,6 @@ public class CollaborationService {
                 .status("accepted")
                 .project(mapProjectDetail(project))
                 .collaborators(collaborators)
-                .build();
-    }
-
-    public CollaborationDashboardResponse getDashboard(String authorizationHeader) {
-        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
-
-        userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
-        List<CollaborationResponse> requestCollab = collaborationRepository.findByIdPengguna(userId)
-                .stream()
-                .map(collaboration -> {
-                    Project project = projectRepository.findById(collaboration.getProjectId())
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
-
-                    return mapToResponse(collaboration, project);
-                })
-                .toList();
-
-        List<ProjectResponse> ownedProjects = projectRepository.findByUser_IdPengguna(userId)
-                .stream()
-                .map(project -> ProjectResponse.builder()
-                        .id(project.getProjectId())
-                        .title(project.getTitle())
-                        .description(project.getDescription())
-                        .category(project.getCategory())
-                        .status(project.getStatus())
-                        .repositoryLink(project.getRepositoryLink())
-                        .projectPicture(project.getFileUrl())
-                        .deadline(project.getDeadline())
-                        .build())
-                .toList();
-
-        return CollaborationDashboardResponse.builder()
-                .requestCollab(requestCollab)
-                .ownedProjects(ownedProjects)
-                .build();
-    }
-
-    private PendingCollaborationUserResponse buildPendingUserResponse(
-            Collaboration collaboration,
-            Profile profile
-    ) {
-        return PendingCollaborationUserResponse.builder()
-                .collaborationId(collaboration.getCollaborationId())
-                .idPengguna(collaboration.getIdPengguna())
-                .namaLengkap(profile.getNamaLengkap())
-                .email(profile.getEmail())
-                .profilePicture(profile.getProfilePicture())
-                .institusi(profile.getInstitusi())
-                .bio(profile.getBio())
-                .keahlian(profile.getKeahlian())
-                .lokasi(profile.getLokasi())
-                .whatsapp(profile.getWhatsapp())
-                .instagram(profile.getInstagram())
-                .facebook(profile.getFacebook())
-                .linkedin(profile.getLinkedin())
-                .role(collaboration.getRole())
-                .status(collaboration.getStatus())
-                .requestStatus(collaboration.getStatus())
-                .requestedAt(collaboration.getJoinDate())
                 .build();
     }
 
@@ -399,6 +374,31 @@ public class CollaborationService {
                         .email(project.getUser().getEmail())
                         .profilePicture(ownerProfile != null ? ownerProfile.getProfilePicture() : null)
                         .build())
+                .build();
+    }
+
+    private PendingCollaborationUserResponse buildPendingUserResponse(
+            Collaboration collaboration,
+            Profile profile
+    ) {
+        return PendingCollaborationUserResponse.builder()
+                .collaborationId(collaboration.getCollaborationId())
+                .idPengguna(collaboration.getIdPengguna())
+                .namaLengkap(profile.getNamaLengkap())
+                .email(profile.getEmail())
+                .profilePicture(profile.getProfilePicture())
+                .institusi(profile.getInstitusi())
+                .bio(profile.getBio())
+                .keahlian(profile.getKeahlian())
+                .lokasi(profile.getLokasi())
+                .whatsapp(profile.getWhatsapp())
+                .instagram(profile.getInstagram())
+                .facebook(profile.getFacebook())
+                .linkedin(profile.getLinkedin())
+                .role(collaboration.getRole())
+                .status(collaboration.getStatus())
+                .requestStatus(collaboration.getStatus())
+                .requestedAt(collaboration.getJoinDate())
                 .build();
     }
 }

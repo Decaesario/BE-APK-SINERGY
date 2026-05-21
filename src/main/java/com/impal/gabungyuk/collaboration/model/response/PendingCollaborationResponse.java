@@ -29,7 +29,9 @@ public class PendingCollaborationResponse {
         private Integer projectId;
         private String title;
         private String description;
-        private String category;
+
+        private List<String> category;
+
         private String status;
         private String repositoryLink;
         private String projectPicture;

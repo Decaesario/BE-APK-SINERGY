@@ -1,6 +1,7 @@
 package com.impal.gabungyuk.project.entity;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.impal.gabungyuk.auth.entity.User;
 import jakarta.persistence.*;
@@ -30,8 +31,13 @@ public class Project {
     @Column(name = "description", nullable = true)
     private String description;
 
-    @Column(name = "category", nullable = true)
-    private String category;
+    @ElementCollection
+    @CollectionTable(
+            name = "project_category",
+            joinColumns = @JoinColumn(name = "project_id")
+    )
+    @Column(name = "category")
+    private List<String> category;
 
     @Column(name = "status", nullable = true)
     private String status;
