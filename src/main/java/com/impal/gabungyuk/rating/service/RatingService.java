@@ -73,8 +73,7 @@ public class RatingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating value must be between 1 and 5");
         }
 
-        Project project = projectRepository.findById(request.getProjectId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(request.getProjectId());
 
         if (!project.getUser().getIdPengguna().equals(ownerUserId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only project owner can give rating");
@@ -181,8 +180,7 @@ public class RatingService {
     }
 
     public List<RatingResponse> getProjectRatings(Integer projectId) {
-        projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        findActiveProjectById(projectId);
 
         return projectRatingRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
                 .stream()
@@ -215,5 +213,10 @@ public class RatingService {
                 .createdAt(rating.getCreatedAt())
                 .updatedAt(rating.getUpdatedAt())
                 .build();
+    }
+
+    private Project findActiveProjectById(Integer projectId) {
+        return projectRepository.findActiveById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
     }
 }

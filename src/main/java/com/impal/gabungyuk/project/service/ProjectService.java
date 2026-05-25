@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
 @Service
 public class ProjectService {
 
+    private static final String PROJECT_STATUS_DELETED = "DELETED";
+
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final TokenService tokenService;
@@ -115,8 +117,7 @@ public class ProjectService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(projectId);
 
         if (!project.getUser().getIdPengguna().equals(user.getIdPengguna())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to edit this project");
@@ -139,6 +140,9 @@ public class ProjectService {
         }
 
         if (projectRequest.getStatus() != null) {
+            if (PROJECT_STATUS_DELETED.equalsIgnoreCase(projectRequest.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid project status");
+            }
             project.setStatus(projectRequest.getStatus());
         }
 
@@ -193,7 +197,7 @@ public class ProjectService {
         userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        List<Project> projects = projectRepository.findByUser_IdPengguna(userId);
+        List<Project> projects = projectRepository.findActiveByUserId(userId);
 
         return projects.stream()
                 .map(this::mapToResponse)
@@ -206,8 +210,7 @@ public class ProjectService {
     ) {
         tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(projectId);
 
         return mapToResponse(project);
     }
@@ -215,7 +218,7 @@ public class ProjectService {
     public List<ProjectResponse> getAllProjectsForAuthenticatedUser(String authorizationHeader) {
         tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        List<Project> projects = projectRepository.findAll();
+        List<Project> projects = projectRepository.findAllActive();
 
         return projects.stream()
                 .map(this::mapToResponse)
@@ -228,17 +231,17 @@ public class ProjectService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(projectId);
 
         if (!project.getUser().getIdPengguna().equals(user.getIdPengguna())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to delete this project");
         }
 
-        // penambahan log aktivitas
-        activityLogService.log(user, project, "Deleted project: " + project.getTitle());
+        project.setStatus(PROJECT_STATUS_DELETED);
+        Project deletedProject = projectRepository.save(project);
 
-        projectRepository.delete(project);
+        // penambahan log aktivitas
+        activityLogService.log(user, deletedProject, "Deleted project: " + deletedProject.getTitle());
     }
 
     // untuk notification
@@ -374,5 +377,10 @@ public class ProjectService {
                 .deadline(project.getDeadline())
                 .owner(owner)
                 .build();
+    }
+
+    private Project findActiveProjectById(Integer projectId) {
+        return projectRepository.findActiveById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
     }
 }

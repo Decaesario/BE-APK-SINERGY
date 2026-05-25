@@ -52,7 +52,7 @@ public class SearchServiceImpl implements SearchService {
                 .findByNamaLengkapContainingIgnoreCase(query);
 
         List<Project> projects = projectRepository
-                .findByTitleContainingIgnoreCase(query);
+                .findActiveByTitleContaining(query);
 
         List<SearchUserResponse> userResponses = users.stream()
                 .map(user -> SearchUserResponse.builder()

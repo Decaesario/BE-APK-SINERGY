@@ -2,6 +2,7 @@ package com.impal.gabungyuk.collaboration.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -72,8 +73,7 @@ public class CollaborationService {
             );
         }
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(projectId);
 
         if (project.getUser().getIdPengguna().equals(userId)) {
             throw new ResponseStatusException(
@@ -130,8 +130,7 @@ public class CollaborationService {
         Collaboration collaboration = collaborationRepository.findById(collaborationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Collaboration not found"));
 
-        Project project = projectRepository.findById(collaboration.getProjectId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(collaboration.getProjectId());
 
         return mapToResponse(collaboration, project);
     }
@@ -157,8 +156,7 @@ public class CollaborationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Action is required");
         }
 
-        Project project = projectRepository.findById(request.getProjectId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(request.getProjectId());
 
         if (!project.getUser().getIdPengguna().equals(ownerId)) {
             throw new ResponseStatusException(
@@ -238,17 +236,14 @@ public class CollaborationService {
         List<CollaborationResponse> requestCollab = collaborationRepository.findByIdPengguna(userId)
                 .stream()
                 .map(collaboration -> {
-                    Project project = projectRepository.findById(collaboration.getProjectId())
-                            .orElseThrow(() -> new ResponseStatusException(
-                                    HttpStatus.NOT_FOUND,
-                                    "Project not found"
-                            ));
-
-                    return mapToResponse(collaboration, project);
+                    return projectRepository.findActiveById(collaboration.getProjectId())
+                            .map(project -> mapToResponse(collaboration, project))
+                            .orElse(null);
                 })
+                .filter(Objects::nonNull)
                 .toList();
 
-        List<ProjectResponse> ownedProjects = projectRepository.findByUser_IdPengguna(userId)
+        List<ProjectResponse> ownedProjects = projectRepository.findActiveByUserId(userId)
                 .stream()
                 .map(project -> ProjectResponse.builder()
                         .id(project.getProjectId())
@@ -274,8 +269,7 @@ public class CollaborationService {
     ) {
         Integer ownerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(projectId);
 
         if (!project.getUser().getIdPengguna().equals(ownerId)) {
             throw new ResponseStatusException(
@@ -311,8 +305,7 @@ public class CollaborationService {
     ) {
         tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        Project project = findActiveProjectById(projectId);
 
         List<PendingCollaborationUserResponse> collaborators = collaborationRepository
                 .findByProjectIdAndStatus(projectId, "ACCEPTED")
@@ -400,5 +393,10 @@ public class CollaborationService {
                 .requestStatus(collaboration.getStatus())
                 .requestedAt(collaboration.getJoinDate())
                 .build();
+    }
+
+    private Project findActiveProjectById(Integer projectId) {
+        return projectRepository.findActiveById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
     }
 }

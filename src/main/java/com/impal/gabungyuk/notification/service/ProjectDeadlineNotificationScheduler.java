@@ -39,7 +39,7 @@ public class ProjectDeadlineNotificationScheduler {
     public void checkProjectDeadlineReminders() {
         LocalDate today = LocalDate.now();
 
-        List<Project> projects = projectRepository.findAll();
+        List<Project> projects = projectRepository.findAllActive();
 
         for (Project project : projects) {
             if (project.getDeadline() == null) {
