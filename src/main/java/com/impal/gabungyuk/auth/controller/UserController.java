@@ -66,11 +66,15 @@ public class UserController {
     }
 
     @GetMapping(
-            value = "/api/v1/users/current",
+            value = "/api/v1/users/{id}",
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public SuccessResponse<AuthUserResponse> getCurrentUser(@RequestHeader("Authorization") String authorizationHeader) {
-        AuthUserResponse response = userService.getCurrentUser(authorizationHeader);
+    public SuccessResponse<AuthUserResponse> getUserById(
+            @PathVariable("id") Integer id,
+            @RequestHeader("Authorization") String authorizationHeader
+    ) {
+
+        AuthUserResponse response = userService.getUserById(id, authorizationHeader);
 
         return SuccessResponse.<AuthUserResponse>builder()
                 .status(200)

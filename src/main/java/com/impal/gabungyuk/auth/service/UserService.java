@@ -174,10 +174,13 @@ public class UserService {
     }
 
     @Transactional
-    public AuthUserResponse getCurrentUser(String authorizationHeader) {
-        Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    public AuthUserResponse getUserById(Integer id, String authorizationHeader) {
+
+        tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         return AuthUserResponse.builder()
                 .userId(user.getIdPengguna())
