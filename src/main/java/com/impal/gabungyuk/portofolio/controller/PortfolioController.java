@@ -36,7 +36,7 @@ public class PortfolioController {
     }
 
     @PostMapping(
-            value = "/api/v1/portfolio",
+            value = "/api/v1/create/portfolio",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
@@ -54,7 +54,7 @@ public class PortfolioController {
     }
 
     @PutMapping(
-            value = "/api/v1/portfolio/{id}",
+            value = "/api/v1/edit/portfolio/{id}",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
