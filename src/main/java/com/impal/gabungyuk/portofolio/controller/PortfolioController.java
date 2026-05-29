@@ -35,6 +35,20 @@ public class PortfolioController {
                 .build();
     }
 
+    @GetMapping(
+            value = "/api/v1/portfolio/{usersId}",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public SuccessResponse<List<PortfolioResponse>> getPortfoliosByUserId(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @PathVariable Integer usersId) {
+        return SuccessResponse.<List<PortfolioResponse>>builder()
+                .status(200)
+                .message("Portfolios retrieved successfully")
+                .data(portfolioService.getUsersPortoflio(authorizationHeader, usersId))
+                .build();
+    }
+
     @PostMapping(
             value = "/api/v1/create/portfolio",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,

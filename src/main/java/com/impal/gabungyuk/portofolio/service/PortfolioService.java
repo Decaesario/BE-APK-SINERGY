@@ -33,6 +33,12 @@ public class PortfolioService {
         return portfolios.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    public List<PortfolioResponse> getUsersPortoflio(String authorizationHeader, Integer idPengguna) {
+        tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        List<Portfolio> portfolios = portfolioRepository.findAllByIdPengguna(idPengguna);
+        return portfolios.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     // POST
     public PortfolioResponse createPortfolio(
             HttpServletRequest requestHttp,
