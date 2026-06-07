@@ -6,6 +6,7 @@ import com.impal.gabungyuk.Activitylog.repository.ActivityLogRepository;
 import com.impal.gabungyuk.auth.entity.User;
 import com.impal.gabungyuk.auth.respository.UserRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.project.entity.Project;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,11 +22,18 @@ public class ActivityLogService {
     private final ActivityLogRepository activityLogRepository;
     private final UserRepository userRepository;
     private final TokenService tokenService;
+    private final TimezoneService timezoneService;
 
-    public ActivityLogService(ActivityLogRepository activityLogRepository, UserRepository userRepository, TokenService tokenService) {
+    public ActivityLogService(
+            ActivityLogRepository activityLogRepository,
+            UserRepository userRepository,
+            TokenService tokenService,
+            TimezoneService timezoneService
+    ) {
         this.activityLogRepository = activityLogRepository;
         this.userRepository = userRepository;
         this.tokenService = tokenService;
+        this.timezoneService = timezoneService;
     }
 
    public void log(User user, Project project, String message) {
@@ -47,11 +55,12 @@ public Map<String, Long> getActivityRecap(String authorizationHeader) {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
     List<ActivityLog> logs = activityLogRepository.findByUser_IdPenggunaOrderByTimestampDesc(userId);
+    String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
     // Group by tanggal (yyyy-MM-dd) → hitung jumlah aktivitas per hari
     return logs.stream()
             .collect(Collectors.groupingBy(
-                    log -> log.getTimestamp().toLocalDate().toString(),
+                    log -> timezoneService.convertToUserZone(log.getTimestamp(), viewerTz).toLocalDate().toString(),
                     Collectors.counting()
             ));
 }
@@ -63,6 +72,7 @@ public Map<String, Long> getActivityRecap(String authorizationHeader) {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         List<ActivityLog> logs = activityLogRepository.findByUser_IdPenggunaOrderByTimestampDesc(userId);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         return logs.stream()
                 .map(log -> ActivityLogResponse.builder()
@@ -71,7 +81,7 @@ public Map<String, Long> getActivityRecap(String authorizationHeader) {
                         .projectId(log.getProject() != null ? log.getProject().getProjectId() : null)
                         .message(log.getMessage())      
                         .isRead(log.getIsRead())
-                        .timestamp(log.getTimestamp())
+                        .timestamp(timezoneService.convertToUserZone(log.getTimestamp(), viewerTz))
                         .build())
                 .collect(Collectors.toList());
     }

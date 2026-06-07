@@ -2,7 +2,6 @@ package com.impal.gabungyuk.Activitylog.model.response;
 
 import lombok.*;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDateTime;
 
 @Data
@@ -15,6 +14,5 @@ public class ActivityLogResponse {
     private Integer projectId;
     private String message;
     private Boolean isRead;
-    @JsonFormat(pattern = "HH:mm:ss - dd/MM/yyyy", timezone = "Asia/Jakarta")
     private LocalDateTime timestamp;
 }

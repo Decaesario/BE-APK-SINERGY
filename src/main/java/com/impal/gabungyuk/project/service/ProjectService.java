@@ -6,6 +6,7 @@ import com.impal.gabungyuk.auth.respository.UserRepository;
 import com.impal.gabungyuk.collaboration.entity.Collaboration;
 import com.impal.gabungyuk.collaboration.repository.CollaborationRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.notification.service.NotificationService;
 import com.impal.gabungyuk.project.entity.Project;
 import com.impal.gabungyuk.project.model.request.ProjectRequest;
@@ -38,6 +39,7 @@ public class ProjectService {
     // untuk notification
     private final NotificationService notificationService;
     private final CollaborationRepository collaborationRepository;
+    private final TimezoneService timezoneService;
 
     public ProjectService(
             ProjectRepository projectRepository,
@@ -45,7 +47,8 @@ public class ProjectService {
             TokenService tokenService,
             ActivityLogService activityLogService,
             NotificationService notificationService,
-            CollaborationRepository collaborationRepository
+            CollaborationRepository collaborationRepository,
+            TimezoneService timezoneService
     ) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
@@ -53,6 +56,7 @@ public class ProjectService {
         this.activityLogService = activityLogService;
         this.notificationService = notificationService;
         this.collaborationRepository = collaborationRepository;
+        this.timezoneService = timezoneService;
     }
 
     public ProjectResponse createProject(
@@ -102,7 +106,8 @@ public class ProjectService {
         // penambahan log aktivitas
         activityLogService.log(user, savedProject, "Created project: " + savedProject.getTitle());
 
-        return mapToResponse(savedProject);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
+        return mapToResponse(savedProject, viewerTz);
     }
 
     public ProjectResponse updateProject(
@@ -188,7 +193,8 @@ public class ProjectService {
         // penambahan log aktivitas
         activityLogService.log(user, updatedProject, "Updated project: " + updatedProject.getTitle());
 
-        return mapToResponse(updatedProject);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
+        return mapToResponse(updatedProject, viewerTz);
     }
 
     public List<ProjectResponse> getAllProjectsByUser(String authorizationHeader) {
@@ -198,9 +204,10 @@ public class ProjectService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         List<Project> projects = projectRepository.findActiveByUserId(userId);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         return projects.stream()
-                .map(this::mapToResponse)
+                .map(project -> mapToResponse(project, viewerTz))
                 .collect(Collectors.toList());
     }
 
@@ -208,20 +215,22 @@ public class ProjectService {
             Integer projectId,
             String authorizationHeader
     ) {
-        tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        Integer viewerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         Project project = findActiveProjectById(projectId);
 
-        return mapToResponse(project);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(viewerId);
+        return mapToResponse(project, viewerTz);
     }
 
     public List<ProjectResponse> getAllProjectsForAuthenticatedUser(String authorizationHeader) {
-        tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        Integer viewerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         List<Project> projects = projectRepository.findAllActive();
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(viewerId);
 
         return projects.stream()
-                .map(this::mapToResponse)
+                .map(project -> mapToResponse(project, viewerTz))
                 .collect(Collectors.toList());
     }
 
@@ -354,7 +363,7 @@ public class ProjectService {
                 + requestHttp.getServerPort();
     }
 
-    private ProjectResponse mapToResponse(Project project) {
+    private ProjectResponse mapToResponse(Project project, String viewerTimezone) {
         UserOwnerResponse owner = null;
 
         if (project.getUser() != null) {
@@ -374,7 +383,7 @@ public class ProjectService {
                 .status(project.getStatus())
                 .repositoryLink(project.getRepositoryLink())
                 .projectPicture(project.getFileUrl())
-                .deadline(project.getDeadline())
+                .deadline(timezoneService.convertToUserZone(project.getDeadline(), viewerTimezone))
                 .owner(owner)
                 .build();
     }

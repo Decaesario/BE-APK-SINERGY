@@ -19,6 +19,7 @@ import com.impal.gabungyuk.collaboration.model.response.PendingCollaborationResp
 import com.impal.gabungyuk.collaboration.model.response.PendingCollaborationUserResponse;
 import com.impal.gabungyuk.collaboration.repository.CollaborationRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.notification.service.NotificationService;
 import com.impal.gabungyuk.profile.entitiy.Profile;
 import com.impal.gabungyuk.profile.repository.ProfileRepository;
@@ -38,6 +39,7 @@ public class CollaborationService {
 
     // untuk notification
     private final NotificationService notificationService;
+    private final TimezoneService timezoneService;
 
     public CollaborationService(
             CollaborationRepository collaborationRepository,
@@ -46,7 +48,8 @@ public class CollaborationService {
             ProjectRepository projectRepository,
             ProfileRepository profileRepository,
             ActivityLogService activityLogService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            TimezoneService timezoneService
     ) {
         this.collaborationRepository = collaborationRepository;
         this.tokenService = tokenService;
@@ -55,6 +58,7 @@ public class CollaborationService {
         this.profileRepository = profileRepository;
         this.activityLogService = activityLogService;
         this.notificationService = notificationService;
+        this.timezoneService = timezoneService;
     }
 
     public CollaborationResponse requestCollaboration(Integer projectId, String authorizationHeader) {
@@ -118,7 +122,8 @@ public class CollaborationService {
                 project.getTitle()
         );
 
-        return mapToResponse(saved, project);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
+        return mapToResponse(saved, project, viewerTz);
     }
 
     public CollaborationResponse getCollaborationById(String authorizationHeader, Integer collaborationId) {
@@ -132,7 +137,8 @@ public class CollaborationService {
 
         Project project = findActiveProjectById(collaboration.getProjectId());
 
-        return mapToResponse(collaboration, project);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
+        return mapToResponse(collaboration, project, viewerTz);
     }
 
     public PendingCollaborationResponse acceptOrDeclineCollaboration(
@@ -218,11 +224,12 @@ public class CollaborationService {
         Profile profile = profileRepository.findByIdPengguna(updated.getIdPengguna())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profile not found"));
 
-        PendingCollaborationUserResponse collaborator = buildPendingUserResponse(updated, profile);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(ownerId);
+        PendingCollaborationUserResponse collaborator = buildPendingUserResponse(updated, profile, viewerTz);
 
         return PendingCollaborationResponse.builder()
                 .status(updated.getStatus().toLowerCase())
-                .project(mapProjectDetail(project))
+                .project(mapProjectDetail(project, viewerTz))
                 .collaborators(List.of(collaborator))
                 .build();
     }
@@ -232,12 +239,13 @@ public class CollaborationService {
 
         userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         List<CollaborationResponse> requestCollab = collaborationRepository.findByIdPengguna(userId)
                 .stream()
                 .map(collaboration -> {
                     return projectRepository.findActiveById(collaboration.getProjectId())
-                            .map(project -> mapToResponse(collaboration, project))
+                            .map(project -> mapToResponse(collaboration, project, viewerTz))
                             .orElse(null);
                 })
                 .filter(Objects::nonNull)
@@ -253,7 +261,7 @@ public class CollaborationService {
                         .status(project.getStatus())
                         .repositoryLink(project.getRepositoryLink())
                         .projectPicture(project.getFileUrl())
-                        .deadline(project.getDeadline())
+                        .deadline(timezoneService.convertToUserZone(project.getDeadline(), viewerTz))
                         .build())
                 .toList();
 
@@ -268,6 +276,7 @@ public class CollaborationService {
             Integer projectId
     ) {
         Integer ownerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(ownerId);
 
         Project project = findActiveProjectById(projectId);
 
@@ -288,13 +297,13 @@ public class CollaborationService {
                                     "Profile not found"
                             ));
 
-                    return buildPendingUserResponse(collaboration, profile);
+                    return buildPendingUserResponse(collaboration, profile, viewerTz);
                 })
                 .toList();
 
         return PendingCollaborationResponse.builder()
                 .status("pending")
-                .project(mapProjectDetail(project))
+                .project(mapProjectDetail(project, viewerTz))
                 .collaborators(collaborators)
                 .build();
     }
@@ -303,7 +312,8 @@ public class CollaborationService {
             String authorizationHeader,
             Integer projectId
     ) {
-        tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        Integer viewerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(viewerId);
 
         Project project = findActiveProjectById(projectId);
 
@@ -317,18 +327,18 @@ public class CollaborationService {
                                     "Profile not found"
                             ));
 
-                    return buildPendingUserResponse(collaboration, profile);
+                    return buildPendingUserResponse(collaboration, profile, viewerTz);
                 })
                 .toList();
 
         return PendingCollaborationResponse.builder()
                 .status("accepted")
-                .project(mapProjectDetail(project))
+                .project(mapProjectDetail(project, viewerTz))
                 .collaborators(collaborators)
                 .build();
     }
 
-    private PendingCollaborationResponse.ProjectDetail mapProjectDetail(Project project) {
+    private PendingCollaborationResponse.ProjectDetail mapProjectDetail(Project project, String viewerTimezone) {
         return PendingCollaborationResponse.ProjectDetail.builder()
                 .projectId(project.getProjectId())
                 .title(project.getTitle())
@@ -337,11 +347,11 @@ public class CollaborationService {
                 .status(project.getStatus())
                 .repositoryLink(project.getRepositoryLink())
                 .projectPicture(project.getFileUrl())
-                .deadline(project.getDeadline())
+                .deadline(timezoneService.convertToUserZone(project.getDeadline(), viewerTimezone))
                 .build();
     }
 
-    private CollaborationResponse mapToResponse(Collaboration collaboration, Project project) {
+    private CollaborationResponse mapToResponse(Collaboration collaboration, Project project, String viewerTimezone) {
         Profile ownerProfile = profileRepository.findByIdPengguna(project.getUser().getIdPengguna())
                 .orElse(null);
 
@@ -359,7 +369,7 @@ public class CollaborationService {
                         .status(project.getStatus())
                         .repositoryLink(project.getRepositoryLink())
                         .projectPicture(project.getFileUrl())
-                        .deadline(project.getDeadline())
+                        .deadline(timezoneService.convertToUserZone(project.getDeadline(), viewerTimezone))
                         .build())
                 .owner(CollaborationResponse.OwnerDetail.builder()
                         .idPengguna(project.getUser().getIdPengguna())
@@ -372,7 +382,8 @@ public class CollaborationService {
 
     private PendingCollaborationUserResponse buildPendingUserResponse(
             Collaboration collaboration,
-            Profile profile
+            Profile profile,
+            String viewerTimezone
     ) {
         return PendingCollaborationUserResponse.builder()
                 .collaborationId(collaboration.getCollaborationId())
@@ -391,7 +402,7 @@ public class CollaborationService {
                 .role(collaboration.getRole())
                 .status(collaboration.getStatus())
                 .requestStatus(collaboration.getStatus())
-                .requestedAt(collaboration.getJoinDate())
+                .requestedAt(timezoneService.convertToUserZone(collaboration.getJoinDate(), viewerTimezone))
                 .build();
     }
 

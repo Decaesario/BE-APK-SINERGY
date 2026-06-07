@@ -11,6 +11,7 @@ import com.impal.gabungyuk.auth.entity.User;
 import com.impal.gabungyuk.auth.respository.UserRepository;
 import com.impal.gabungyuk.collaboration.repository.CollaborationRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.profile.entitiy.Profile;
 import com.impal.gabungyuk.profile.repository.ProfileRepository;
 import com.impal.gabungyuk.project.entity.Project;
@@ -31,6 +32,7 @@ public class RatingService {
     private final ProfileRepository profileRepository;
     private final CollaborationRepository collaborationRepository;
     private final TokenService tokenService;
+    private final TimezoneService timezoneService;
 
     public RatingService(
             ProjectRatingRepository projectRatingRepository,
@@ -38,7 +40,8 @@ public class RatingService {
             UserRepository userRepository,
             ProfileRepository profileRepository,
             CollaborationRepository collaborationRepository,
-            TokenService tokenService
+            TokenService tokenService,
+            TimezoneService timezoneService
     ) {
         this.projectRatingRepository = projectRatingRepository;
         this.projectRepository = projectRepository;
@@ -46,6 +49,7 @@ public class RatingService {
         this.profileRepository = profileRepository;
         this.collaborationRepository = collaborationRepository;
         this.tokenService = tokenService;
+        this.timezoneService = timezoneService;
     }
 
     public RatingResponse createRating(
@@ -132,7 +136,8 @@ public class RatingService {
 
         ProjectRating savedRating = projectRatingRepository.save(rating);
 
-        return mapToRatingResponse(savedRating);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(ownerUserId);
+        return mapToRatingResponse(savedRating, viewerTz);
     }
 
     public UserRatingSummaryResponse getUserRatings(Integer userId) {
@@ -141,10 +146,11 @@ public class RatingService {
 
         Profile profile = profileRepository.findByIdPengguna(userId)
                 .orElse(null);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         List<RatingResponse> ratings = projectRatingRepository.findByRatedUserIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(this::mapToRatingResponse)
+                .map(rating -> mapToRatingResponse(rating, viewerTz))
                 .toList();
 
         Double averageRating = projectRatingRepository.getAverageRatingByRatedUserId(userId);
@@ -181,14 +187,15 @@ public class RatingService {
 
     public List<RatingResponse> getProjectRatings(Integer projectId) {
         findActiveProjectById(projectId);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(null);
 
         return projectRatingRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
                 .stream()
-                .map(this::mapToRatingResponse)
+                .map(rating -> mapToRatingResponse(rating, viewerTz))
                 .toList();
     }
 
-    private RatingResponse mapToRatingResponse(ProjectRating rating) {
+    private RatingResponse mapToRatingResponse(ProjectRating rating, String viewerTimezone) {
         Project project = projectRepository.findById(rating.getProjectId())
                 .orElse(null);
 
@@ -210,8 +217,8 @@ public class RatingService {
                 .ownerProfilePicture(ownerProfile != null ? ownerProfile.getProfilePicture() : null)
                 .ratingValue(rating.getRatingValue())
                 .review(rating.getReview())
-                .createdAt(rating.getCreatedAt())
-                .updatedAt(rating.getUpdatedAt())
+                .createdAt(timezoneService.convertToUserZone(rating.getCreatedAt(), viewerTimezone))
+                .updatedAt(timezoneService.convertToUserZone(rating.getUpdatedAt(), viewerTimezone))
                 .build();
     }
 

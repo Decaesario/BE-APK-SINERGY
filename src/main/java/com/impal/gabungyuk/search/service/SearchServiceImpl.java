@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import com.impal.gabungyuk.auth.entity.User;
 import com.impal.gabungyuk.auth.respository.UserRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.project.entity.Project;
 import com.impal.gabungyuk.project.respository.ProjectRepository;
 import com.impal.gabungyuk.search.model.response.SearchProjectResponse;
@@ -21,15 +22,18 @@ public class SearchServiceImpl implements SearchService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final TokenService tokenService;
+    private final TimezoneService timezoneService;
 
     public SearchServiceImpl(
             UserRepository userRepository,
             ProjectRepository projectRepository,
-            TokenService tokenService
+            TokenService tokenService,
+            TimezoneService timezoneService
     ) {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.tokenService = tokenService;
+        this.timezoneService = timezoneService;
     }
 
     @Override
@@ -47,6 +51,7 @@ public class SearchServiceImpl implements SearchService {
                         HttpStatus.NOT_FOUND,
                         "User not found"
                 ));
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         List<User> users = userRepository
                 .findByNamaLengkapContainingIgnoreCase(query);
@@ -73,7 +78,7 @@ public class SearchServiceImpl implements SearchService {
                         .status(project.getStatus())
                         .repositoryLink(project.getRepositoryLink())
                         .projectPicture(project.getFileUrl())
-                        .deadline(project.getDeadline())
+                        .deadline(timezoneService.convertToUserZone(project.getDeadline(), viewerTz))
                         .build())
                 .toList();
 

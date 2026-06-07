@@ -1,6 +1,5 @@
 package com.impal.gabungyuk.portofolio.model.response;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -15,7 +14,6 @@ public class PortfolioResponse {
     private String description;
     private String fileUrl;
     private String image;
-    
-    @JsonFormat(pattern = "HH:mm:ss - dd/MM/yyyy", timezone = "Asia/Jakarta")
+
     private LocalDateTime uploadDate;
 }

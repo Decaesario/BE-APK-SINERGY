@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.notification.entity.Notification;
 import com.impal.gabungyuk.notification.model.response.NotificationResponse;
 import com.impal.gabungyuk.notification.model.response.UnreadNotificationResponse;
@@ -18,13 +19,16 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final TokenService tokenService;
+    private final TimezoneService timezoneService;
 
     public NotificationService(
             NotificationRepository notificationRepository,
-            TokenService tokenService
+            TokenService tokenService,
+            TimezoneService timezoneService
     ) {
         this.notificationRepository = notificationRepository;
         this.tokenService = tokenService;
+        this.timezoneService = timezoneService;
     }
 
     public Notification createNotification(
@@ -54,22 +58,24 @@ public class NotificationService {
 
     public List<NotificationResponse> getMyNotifications(String authorizationHeader) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         return notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(this::mapToResponse)
+                .map(notification -> mapToResponse(notification, viewerTz))
                 .toList();
     }
 
     public UnreadNotificationResponse getMyUnreadNotifications(String authorizationHeader) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         Long unreadCount = notificationRepository.countByRecipientUserIdAndIsReadFalse(userId);
 
         List<NotificationResponse> notifications = notificationRepository
                 .findByRecipientUserIdAndIsReadFalseOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(this::mapToResponse)
+                .map(notification -> mapToResponse(notification, viewerTz))
                 .toList();
 
         return UnreadNotificationResponse.builder()
@@ -99,11 +105,13 @@ public class NotificationService {
 
         Notification updated = notificationRepository.save(notification);
 
-        return mapToResponse(updated);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
+        return mapToResponse(updated, viewerTz);
     }
 
     public List<NotificationResponse> markAllAsRead(String authorizationHeader) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         List<Notification> unreadNotifications = notificationRepository
                 .findByRecipientUserIdAndIsReadFalseOrderByCreatedAtDesc(userId);
@@ -118,7 +126,7 @@ public class NotificationService {
         List<Notification> savedNotifications = notificationRepository.saveAll(unreadNotifications);
 
         return savedNotifications.stream()
-                .map(this::mapToResponse)
+                .map(notification -> mapToResponse(notification, viewerTz))
                 .toList();
     }
 
@@ -247,7 +255,7 @@ public class NotificationService {
         );
     }
 
-    private NotificationResponse mapToResponse(Notification notification) {
+    private NotificationResponse mapToResponse(Notification notification, String viewerTimezone) {
         return NotificationResponse.builder()
                 .notificationId(notification.getNotificationId())
                 .recipientUserId(notification.getRecipientUserId())
@@ -258,8 +266,8 @@ public class NotificationService {
                 .title(notification.getTitle())
                 .message(notification.getMessage())
                 .isRead(notification.getIsRead())
-                .createdAt(notification.getCreatedAt())
-                .readAt(notification.getReadAt())
+                .createdAt(timezoneService.convertToUserZone(notification.getCreatedAt(), viewerTimezone))
+                .readAt(timezoneService.convertToUserZone(notification.getReadAt(), viewerTimezone))
                 .build();
     }
 }

@@ -6,6 +6,7 @@ import com.impal.gabungyuk.calender.repository.CalendarRepository;
 import com.impal.gabungyuk.collaboration.entity.Collaboration;
 import com.impal.gabungyuk.collaboration.repository.CollaborationRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.project.entity.Project;
 import com.impal.gabungyuk.project.respository.ProjectRepository;
 import org.springframework.http.HttpStatus;
@@ -23,22 +24,26 @@ public class CalendarService {
     private final TokenService tokenService;
     private final ProjectRepository projectRepository;
     private final CollaborationRepository collaborationRepository;
+    private final TimezoneService timezoneService;
 
     public CalendarService(
             CalendarRepository calendarRepository,
             TokenService tokenService,
             ProjectRepository projectRepository,
-            CollaborationRepository collaborationRepository
+            CollaborationRepository collaborationRepository,
+            TimezoneService timezoneService
     ) {
         this.calendarRepository = calendarRepository;
         this.tokenService = tokenService;
         this.projectRepository = projectRepository;
         this.collaborationRepository = collaborationRepository;
+        this.timezoneService = timezoneService;
     }
 
     // GET semua deadline (exclude yang is_done = true)
     public List<CalendarResponse> getMyCalendar(String authorizationHeader) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
 
         List<Project> ownedProjects = projectRepository.findActiveByUserId(userId);
 
@@ -67,7 +72,7 @@ public class CalendarService {
                             .map(c -> !c.getIsDone())
                             .orElse(true); // kalau belum ada record, berarti belum done
                 })
-                .map(p -> projectToCalendarResponse(p, userId))
+                .map(p -> projectToCalendarResponse(p, viewerTz))
                 .collect(Collectors.toList());
     }
 
@@ -104,13 +109,13 @@ public class CalendarService {
         calendarRepository.save(calendar);
     }
 
-    private CalendarResponse projectToCalendarResponse(Project project, Integer userId) {
+    private CalendarResponse projectToCalendarResponse(Project project, String viewerTimezone) {
         CalendarResponse response = new CalendarResponse();
         response.setEventId(project.getProjectId());
         response.setProjectId(project.getProjectId());
         response.setTitle(project.getTitle());
         response.setDescription(project.getDescription());
-        response.setDeadline(project.getDeadline());
+        response.setDeadline(timezoneService.convertToUserZone(project.getDeadline(), viewerTimezone));
         response.setIsDone(false);
         return response;
     }

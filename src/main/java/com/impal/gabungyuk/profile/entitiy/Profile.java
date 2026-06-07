@@ -59,5 +59,8 @@ public class Profile {
 
     @Column(name = "linkedin", nullable = true)
     private String linkedin;
+
+    @Column(name = "timezone", nullable = true)
+    private String timezone;
     
 }

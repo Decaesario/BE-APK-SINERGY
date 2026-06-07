@@ -1,6 +1,7 @@
 package com.impal.gabungyuk.portofolio.service;
 
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.portofolio.entity.Portfolio;
 import com.impal.gabungyuk.portofolio.model.request.PortfolioRequest;
 import com.impal.gabungyuk.portofolio.model.response.PortfolioResponse;
@@ -20,23 +21,31 @@ public class PortfolioService {
 
     private final PortfolioRepository portfolioRepository;
     private final TokenService tokenService;
+    private final TimezoneService timezoneService;
 
-    public PortfolioService(PortfolioRepository portfolioRepository, TokenService tokenService) {
+    public PortfolioService(
+            PortfolioRepository portfolioRepository,
+            TokenService tokenService,
+            TimezoneService timezoneService
+    ) {
         this.portfolioRepository = portfolioRepository;
         this.tokenService = tokenService;
+        this.timezoneService = timezoneService;
     }
 
     // GET
     public List<PortfolioResponse> getMyPortfolios(String authorizationHeader) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
         List<Portfolio> portfolios = portfolioRepository.findAllByIdPengguna(userId);
-        return portfolios.stream().map(this::toResponse).collect(Collectors.toList());
+        return portfolios.stream().map(portfolio -> toResponse(portfolio, viewerTz)).collect(Collectors.toList());
     }
 
     public List<PortfolioResponse> getUsersPortoflio(String authorizationHeader, Integer idPengguna) {
-        tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        Integer viewerId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(viewerId);
         List<Portfolio> portfolios = portfolioRepository.findAllByIdPengguna(idPengguna);
-        return portfolios.stream().map(this::toResponse).collect(Collectors.toList());
+        return portfolios.stream().map(portfolio -> toResponse(portfolio, viewerTz)).collect(Collectors.toList());
     }
 
     // POST
@@ -64,7 +73,8 @@ public class PortfolioService {
                 .uploadDate(LocalDateTime.now())
                 .build();
 
-        return toResponse(portfolioRepository.save(portfolio));
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
+        return toResponse(portfolioRepository.save(portfolio), viewerTz);
     }
 
     // PUT
@@ -94,7 +104,8 @@ public class PortfolioService {
             portfolio.setImage(request.getImage());
         }
 
-        return toResponse(portfolioRepository.save(portfolio));
+        String viewerTz = timezoneService.getUserTimezoneOrDefault(userId);
+        return toResponse(portfolioRepository.save(portfolio), viewerTz);
     }
 
     // DELETE
@@ -151,7 +162,7 @@ public class PortfolioService {
                 + requestHttp.getServerPort();
     }
 
-    private PortfolioResponse toResponse(Portfolio portfolio) {
+    private PortfolioResponse toResponse(Portfolio portfolio, String viewerTimezone) {
         PortfolioResponse response = new PortfolioResponse();
         response.setPortfolioId(portfolio.getPortfolioId());
         response.setIdPengguna(portfolio.getIdPengguna());
@@ -159,7 +170,7 @@ public class PortfolioService {
         response.setDescription(portfolio.getDescription());
         response.setFileUrl(portfolio.getFileUrl());
         response.setImage(portfolio.getImage());
-        response.setUploadDate(portfolio.getUploadDate());
+        response.setUploadDate(timezoneService.convertToUserZone(portfolio.getUploadDate(), viewerTimezone));
         return response;
     }
 }
