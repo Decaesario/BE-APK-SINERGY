@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import com.impal.gabungyuk.auth.entity.User;
 import com.impal.gabungyuk.auth.respository.UserRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.UrlService;
 import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.project.entity.Project;
 import com.impal.gabungyuk.project.respository.ProjectRepository;
@@ -23,17 +24,20 @@ public class SearchServiceImpl implements SearchService {
     private final ProjectRepository projectRepository;
     private final TokenService tokenService;
     private final TimezoneService timezoneService;
+    private final UrlService urlService;
 
     public SearchServiceImpl(
             UserRepository userRepository,
             ProjectRepository projectRepository,
             TokenService tokenService,
-            TimezoneService timezoneService
+            TimezoneService timezoneService,
+            UrlService urlService
     ) {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.tokenService = tokenService;
         this.timezoneService = timezoneService;
+        this.urlService = urlService;
     }
 
     @Override
@@ -63,7 +67,7 @@ public class SearchServiceImpl implements SearchService {
                 .map(user -> SearchUserResponse.builder()
                         .userId(user.getIdPengguna())
                         .namaLengkap(user.getNamaLengkap())
-                        .profilePicture(user.getProfilePicture())
+                        .profilePicture(urlService.normalizeProfilePictureUrl(user.getProfilePicture()))
                         .bio(user.getBio())
                         .institusi(user.getInstitusi())
                         .build())

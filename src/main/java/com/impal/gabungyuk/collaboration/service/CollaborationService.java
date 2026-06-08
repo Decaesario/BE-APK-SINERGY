@@ -19,6 +19,7 @@ import com.impal.gabungyuk.collaboration.model.response.PendingCollaborationResp
 import com.impal.gabungyuk.collaboration.model.response.PendingCollaborationUserResponse;
 import com.impal.gabungyuk.collaboration.repository.CollaborationRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.UrlService;
 import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.notification.service.NotificationService;
 import com.impal.gabungyuk.profile.entitiy.Profile;
@@ -36,6 +37,7 @@ public class CollaborationService {
     private final ProjectRepository projectRepository;
     private final ProfileRepository profileRepository;
     private final ActivityLogService activityLogService;
+    private final UrlService urlService;
 
     // untuk notification
     private final NotificationService notificationService;
@@ -49,7 +51,8 @@ public class CollaborationService {
             ProfileRepository profileRepository,
             ActivityLogService activityLogService,
             NotificationService notificationService,
-            TimezoneService timezoneService
+            TimezoneService timezoneService,
+            UrlService urlService
     ) {
         this.collaborationRepository = collaborationRepository;
         this.tokenService = tokenService;
@@ -59,6 +62,7 @@ public class CollaborationService {
         this.activityLogService = activityLogService;
         this.notificationService = notificationService;
         this.timezoneService = timezoneService;
+        this.urlService = urlService;
     }
 
     public CollaborationResponse requestCollaboration(Integer projectId, String authorizationHeader) {
@@ -375,7 +379,7 @@ public class CollaborationService {
                         .idPengguna(project.getUser().getIdPengguna())
                         .namaLengkap(project.getUser().getNamaLengkap())
                         .email(project.getUser().getEmail())
-                        .profilePicture(ownerProfile != null ? ownerProfile.getProfilePicture() : null)
+                        .profilePicture(ownerProfile != null ? urlService.normalizeProfilePictureUrl(ownerProfile.getProfilePicture()) : null)
                         .build())
                 .build();
     }
@@ -390,7 +394,7 @@ public class CollaborationService {
                 .idPengguna(collaboration.getIdPengguna())
                 .namaLengkap(profile.getNamaLengkap())
                 .email(profile.getEmail())
-                .profilePicture(profile.getProfilePicture())
+                .profilePicture(urlService.normalizeProfilePictureUrl(profile.getProfilePicture()))
                 .institusi(profile.getInstitusi())
                 .bio(profile.getBio())
                 .keahlian(profile.getKeahlian())

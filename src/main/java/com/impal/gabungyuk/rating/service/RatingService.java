@@ -11,6 +11,7 @@ import com.impal.gabungyuk.auth.entity.User;
 import com.impal.gabungyuk.auth.respository.UserRepository;
 import com.impal.gabungyuk.collaboration.repository.CollaborationRepository;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.UrlService;
 import com.impal.gabungyuk.core.service.TimezoneService;
 import com.impal.gabungyuk.profile.entitiy.Profile;
 import com.impal.gabungyuk.profile.repository.ProfileRepository;
@@ -33,6 +34,7 @@ public class RatingService {
     private final CollaborationRepository collaborationRepository;
     private final TokenService tokenService;
     private final TimezoneService timezoneService;
+    private final UrlService urlService;
 
     public RatingService(
             ProjectRatingRepository projectRatingRepository,
@@ -41,7 +43,8 @@ public class RatingService {
             ProfileRepository profileRepository,
             CollaborationRepository collaborationRepository,
             TokenService tokenService,
-            TimezoneService timezoneService
+            TimezoneService timezoneService,
+            UrlService urlService
     ) {
         this.projectRatingRepository = projectRatingRepository;
         this.projectRepository = projectRepository;
@@ -50,6 +53,7 @@ public class RatingService {
         this.collaborationRepository = collaborationRepository;
         this.tokenService = tokenService;
         this.timezoneService = timezoneService;
+        this.urlService = urlService;
     }
 
     public RatingResponse createRating(
@@ -159,7 +163,7 @@ public class RatingService {
         return UserRatingSummaryResponse.builder()
                 .userId(userId)
                 .namaLengkap(profile != null ? profile.getNamaLengkap() : null)
-                .profilePicture(profile != null ? profile.getProfilePicture() : null)
+                .profilePicture(profile != null ? urlService.normalizeProfilePictureUrl(profile.getProfilePicture()) : null)
                 .averageRating(averageRating != null ? averageRating : 0.0)
                 .totalRatings(totalRatings)
                 .ratings(ratings)
@@ -179,7 +183,7 @@ public class RatingService {
         return AverageRatingResponse.builder()
                 .userId(userId)
                 .namaLengkap(profile != null ? profile.getNamaLengkap() : null)
-                .profilePicture(profile != null ? profile.getProfilePicture() : null)
+                .profilePicture(profile != null ? urlService.normalizeProfilePictureUrl(profile.getProfilePicture()) : null)
                 .averageRating(averageRating != null ? averageRating : 0.0)
                 .totalRatings(totalRatings)
                 .build();
@@ -211,10 +215,10 @@ public class RatingService {
                 .projectTitle(project != null ? project.getTitle() : null)
                 .ratedUserId(rating.getRatedUserId())
                 .ratedUserName(ratedUserProfile != null ? ratedUserProfile.getNamaLengkap() : null)
-                .ratedUserProfilePicture(ratedUserProfile != null ? ratedUserProfile.getProfilePicture() : null)
+                .ratedUserProfilePicture(ratedUserProfile != null ? urlService.normalizeProfilePictureUrl(ratedUserProfile.getProfilePicture()) : null)
                 .ownerUserId(rating.getOwnerUserId())
                 .ownerName(ownerProfile != null ? ownerProfile.getNamaLengkap() : null)
-                .ownerProfilePicture(ownerProfile != null ? ownerProfile.getProfilePicture() : null)
+                .ownerProfilePicture(ownerProfile != null ? urlService.normalizeProfilePictureUrl(ownerProfile.getProfilePicture()) : null)
                 .ratingValue(rating.getRatingValue())
                 .review(rating.getReview())
                 .createdAt(timezoneService.convertToUserZone(rating.getCreatedAt(), viewerTimezone))

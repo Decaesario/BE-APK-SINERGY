@@ -9,10 +9,10 @@ import com.impal.gabungyuk.auth.model.response.AuthUserResponse;
 import com.impal.gabungyuk.auth.respository.UserRepository;
 import com.impal.gabungyuk.core.security.BCrypt;
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.UrlService;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,17 +35,16 @@ public class UserService {
     private static final String PROVIDER_GOOGLE = "google";
     private static final String PROVIDER_BOTH = "both";
 
-    @Value("${app.base-url:}")
-    private String appBaseUrl;
-
     private final UserRepository userRepository;
     private final TokenService tokenService;
     private final FirebaseAuthService firebaseAuthService;
+    private final UrlService urlService;
 
-    public UserService(UserRepository userRepository, TokenService tokenService, FirebaseAuthService firebaseAuthService) {
+    public UserService(UserRepository userRepository, TokenService tokenService, FirebaseAuthService firebaseAuthService, UrlService urlService) {
         this.userRepository = userRepository;
         this.tokenService = tokenService;
         this.firebaseAuthService = firebaseAuthService;
+        this.urlService = urlService;
     }
 
     @Transactional
@@ -192,7 +191,7 @@ public class UserService {
         return AuthUserResponse.builder()
                 .userId(user.getIdPengguna())
                 .namaLengkap(user.getNamaLengkap())
-                .profilePicture(normalizeProfilePictureUrl(user.getProfilePicture()))
+                .profilePicture(urlService.normalizeProfilePictureUrl(user.getProfilePicture()))
                 .institusi(user.getInstitusi())
                 .bio(user.getBio())
                 .keahlian(parseKeahlian(user.getKeahlian()))
@@ -298,7 +297,7 @@ public class UserService {
                 .userId(user.getIdPengguna())
                 .namaLengkap(user.getNamaLengkap())
                 .email(user.getEmail())
-                .profilePicture(normalizeProfilePictureUrl(user.getProfilePicture()))
+                .profilePicture(urlService.normalizeProfilePictureUrl(user.getProfilePicture()))
                 .institusi(user.getInstitusi())
                 .bio(user.getBio())
                 .keahlian(parseKeahlian(user.getKeahlian()))
@@ -317,7 +316,7 @@ public class UserService {
                 .userId(user.getIdPengguna())
                 .namaLengkap(user.getNamaLengkap())
                 .email(user.getEmail())
-                .profilePicture(normalizeProfilePictureUrl(user.getProfilePicture()))
+                .profilePicture(urlService.normalizeProfilePictureUrl(user.getProfilePicture()))
                 .institusi(user.getInstitusi())
                 .bio(user.getBio())
                 .keahlian(parseKeahlian(user.getKeahlian()))
@@ -329,28 +328,6 @@ public class UserService {
                 .token(token)
                 .expiredAt(expiredAt)
                 .build();
-    }
-
-    private String normalizeProfilePictureUrl(String profilePicture) {
-        if (profilePicture == null || profilePicture.isBlank()) {
-            return null;
-        }
-
-        String trimmed = profilePicture.trim();
-
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-            return trimmed;
-        }
-
-        String base = (appBaseUrl != null && !appBaseUrl.isBlank())
-                ? appBaseUrl.stripTrailing().replaceAll("/+$", "")
-                : "";
-
-        if (trimmed.startsWith("/")) {
-            return base + trimmed;
-        }
-
-        return base + "/" + trimmed;
     }
 
     private String uploadProfilePicture(MultipartFile profilePicture) {

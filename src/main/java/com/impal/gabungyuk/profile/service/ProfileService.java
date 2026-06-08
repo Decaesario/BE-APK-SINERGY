@@ -1,6 +1,7 @@
 package com.impal.gabungyuk.profile.service;
 
 import com.impal.gabungyuk.core.service.TokenService;
+import com.impal.gabungyuk.core.service.UrlService;
 import com.impal.gabungyuk.profile.entitiy.Profile;
 import com.impal.gabungyuk.profile.model.response.ProfileResponse;
 import com.impal.gabungyuk.profile.repository.ProfileRepository;
@@ -19,10 +20,12 @@ public class ProfileService {
 
     private final ProfileRepository profileRepository;
     private final TokenService tokenService;
+    private final UrlService urlService;
 
-    public ProfileService(ProfileRepository profileRepository, TokenService tokenService) {
+    public ProfileService(ProfileRepository profileRepository, TokenService tokenService, UrlService urlService) {
         this.profileRepository = profileRepository;
         this.tokenService = tokenService;
+        this.urlService = urlService;
     }
 
      // ===== HELPER: Convert String (comma-separated) ke List<String> =====
@@ -48,7 +51,7 @@ public class ProfileService {
         ProfileResponse response = new ProfileResponse();
 
         response.setIdPengguna(profile.getIdPengguna());
-        response.setProfilePicture(profile.getProfilePicture());
+        response.setProfilePicture(urlService.normalizeProfilePictureUrl(profile.getProfilePicture()));
         response.setNamaLengkap(profile.getNamaLengkap());
         response.setEmail(profile.getEmail());
         response.setInstitusi(profile.getInstitusi());
