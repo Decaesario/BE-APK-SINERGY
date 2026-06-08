@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 public class UserController {
 
     private final UserService userService;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UserController.class);
 
     public UserController(UserService userService) {
         this.userService = userService;
@@ -100,16 +101,31 @@ public class UserController {
             @RequestPart(value = "data", required = false) String dataJson,
             @RequestPart(value = "profilePicture", required = false) MultipartFile profilePictureFile
     ) {
+        // Debug log incoming parts to help diagnose multipart failures
+        log.debug("updateUserMultipart called - dataJson present: {}", dataJson != null && !dataJson.isBlank());
+        if (profilePictureFile != null) {
+            log.debug("profilePictureFile present - name: {}, originalFilename: {}, size: {}",
+                    profilePictureFile.getName(), profilePictureFile.getOriginalFilename(), profilePictureFile.getSize());
+        } else {
+            log.debug("profilePictureFile is null");
+        }
+
         UpdateUserRequest request = parseUpdateUserRequest(dataJson);
 
-        AuthUserResponse response = userService.updateCurrentUser(
-                authorizationHeader,
-                request,
-                requestHttp,
-                profilePictureFile
-        );
+        try {
+            AuthUserResponse response = userService.updateCurrentUser(
+                    authorizationHeader,
+                    request,
+                    requestHttp,
+                    profilePictureFile
+            );
 
-        return buildUpdateUserResponse(response);
+            return buildUpdateUserResponse(response);
+        } catch (Exception e) {
+            // Log full stacktrace for debugging; rethrow to keep existing error handling
+            log.error("Failed to update user multipart", e);
+            throw e;
+        }
     }
 
     private UpdateUserRequest parseUpdateUserRequest(String dataJson) {
