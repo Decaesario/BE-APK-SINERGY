@@ -11,6 +11,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.databind.ObjectMapper;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @RestController
 public class UserController {
@@ -94,9 +97,11 @@ public class UserController {
     public SuccessResponse<AuthUserResponse> updateUserMultipart(
             HttpServletRequest requestHttp,
             @RequestHeader("Authorization") String authorizationHeader,
-            @ModelAttribute UpdateUserRequest request,
-            @RequestPart(value = "profilePictureFile", required = false) MultipartFile profilePictureFile
+            @RequestPart(value = "data", required = false) String dataJson,
+            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePictureFile
     ) {
+        UpdateUserRequest request = parseUpdateUserRequest(dataJson);
+
         AuthUserResponse response = userService.updateCurrentUser(
                 authorizationHeader,
                 request,
@@ -105,6 +110,19 @@ public class UserController {
         );
 
         return buildUpdateUserResponse(response);
+    }
+
+    private UpdateUserRequest parseUpdateUserRequest(String dataJson) {
+        if (dataJson == null || dataJson.isBlank()) {
+            return new UpdateUserRequest();
+        }
+
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.readValue(dataJson, UpdateUserRequest.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user data format");
+        }
     }
 
     private SuccessResponse<AuthUserResponse> buildUpdateUserResponse(AuthUserResponse response) {
