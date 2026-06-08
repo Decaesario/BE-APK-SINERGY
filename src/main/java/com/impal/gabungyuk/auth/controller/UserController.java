@@ -7,8 +7,12 @@ import com.impal.gabungyuk.auth.model.request.UpdateUserRequest;
 import com.impal.gabungyuk.auth.model.response.AuthUserResponse;
 import com.impal.gabungyuk.core.model.SuccessResponse;
 import com.impal.gabungyuk.auth.service.UserService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
 
 @RestController
 public class UserController {
@@ -83,15 +87,32 @@ public class UserController {
                 .build();
     }
 
-    @RequestMapping(
+    @PatchMapping(
             value = "/api/v1/update/users/current",
-            method = {RequestMethod.PATCH, RequestMethod.PUT},
-            consumes = MediaType.APPLICATION_JSON_VALUE,
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public SuccessResponse<AuthUserResponse> updateUser(@RequestHeader("Authorization") String authorizationHeader,
-                                                        @RequestBody UpdateUserRequest request) {
-        AuthUserResponse response = userService.updateCurrentUser(authorizationHeader, request);
+    public SuccessResponse<AuthUserResponse> updateUser(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestPart(value = "data", required = false) String dataJson,
+            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture
+    ) {
+        ObjectMapper mapper = new ObjectMapper();
+        UpdateUserRequest request = null;
+
+        if (dataJson != null && !dataJson.isEmpty()) {
+            try {
+                request = mapper.readValue(dataJson, UpdateUserRequest.class);
+            } catch (Exception e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid JSON: " + e.getMessage());
+            }
+        }
+
+        AuthUserResponse response = userService.updateCurrentUser(
+                authorizationHeader,
+                request,
+                profilePicture
+        );
 
         return SuccessResponse.<AuthUserResponse>builder()
                 .status(200)
