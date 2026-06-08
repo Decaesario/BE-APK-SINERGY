@@ -18,9 +18,11 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
             cd /opt/BE-APK-SINERGY
-            git pull
-            mvn clean package -DskipTests
-            if [ -f app.pid ]; then
-              kill -9 $(cat app.pid) || true
-            fi
-            nohup java -jar target/gabungyuk-0.0.1-SNAPSHOT.jar > app.log 2>&1 & echo $! > app.pid
+
+            git pull origin main
+
+            cd /app
+
+            docker compose down
+
+            docker compose up -d --build
