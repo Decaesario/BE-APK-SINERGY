@@ -2,6 +2,7 @@ package com.impal.gabungyuk.portofolio.service;
 
 import com.impal.gabungyuk.core.service.TokenService;
 import com.impal.gabungyuk.core.service.TimezoneService;
+import com.impal.gabungyuk.core.service.UrlService;
 import com.impal.gabungyuk.portofolio.entity.Portfolio;
 import com.impal.gabungyuk.portofolio.model.request.PortfolioRequest;
 import com.impal.gabungyuk.portofolio.model.response.PortfolioResponse;
@@ -22,15 +23,18 @@ public class PortfolioService {
     private final PortfolioRepository portfolioRepository;
     private final TokenService tokenService;
     private final TimezoneService timezoneService;
+    private final UrlService urlService;
 
     public PortfolioService(
             PortfolioRepository portfolioRepository,
             TokenService tokenService,
-            TimezoneService timezoneService
+            TimezoneService timezoneService,
+            UrlService urlService
     ) {
         this.portfolioRepository = portfolioRepository;
         this.tokenService = tokenService;
         this.timezoneService = timezoneService;
+        this.urlService = urlService;
     }
 
     // GET
@@ -59,7 +63,7 @@ public class PortfolioService {
 
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
-            imageUrl = uploadPortfolioImage(requestHttp, image);
+            imageUrl = uploadPortfolioImage(image);
         } else if (request.getImage() != null) {
             imageUrl = request.getImage();
         }
@@ -99,7 +103,7 @@ public class PortfolioService {
         portfolio.setFileUrl(request.getFileUrl());
 
         if (image != null && !image.isEmpty()) {
-            portfolio.setImage(uploadPortfolioImage(requestHttp, image));
+            portfolio.setImage(uploadPortfolioImage(image));
         } else if (request.getImage() != null) {
             portfolio.setImage(request.getImage());
         }
@@ -122,9 +126,9 @@ public class PortfolioService {
         portfolioRepository.delete(portfolio);
     }
 
-    private String uploadPortfolioImage(HttpServletRequest requestHttp, MultipartFile image) {
+    private String uploadPortfolioImage(MultipartFile image) {
         try {
-            String uploadDir = "uploads/portfolios/";
+            String uploadDir = System.getProperty("user.home") + "/uploads/portfolios";
             java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
 
             if (!java.nio.file.Files.exists(uploadPath)) {
@@ -146,20 +150,12 @@ public class PortfolioService {
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING
             );
 
-            return getBaseUrl(requestHttp) + "/uploads/portfolios/" + fileName;
+            return "/uploads/portfolios/" + fileName;
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload portfolio image");
         }
-    }
-
-    private String getBaseUrl(HttpServletRequest requestHttp) {
-        return requestHttp.getScheme()
-                + "://"
-                + requestHttp.getServerName()
-                + ":"
-                + requestHttp.getServerPort();
     }
 
     private PortfolioResponse toResponse(Portfolio portfolio, String viewerTimezone) {
@@ -169,7 +165,7 @@ public class PortfolioService {
         response.setTitle(portfolio.getTitle());
         response.setDescription(portfolio.getDescription());
         response.setFileUrl(portfolio.getFileUrl());
-        response.setImage(portfolio.getImage());
+        response.setImage(urlService.normalizeProfilePictureUrl(portfolio.getImage()));
         response.setUploadDate(timezoneService.convertToUserZone(portfolio.getUploadDate(), viewerTimezone));
         return response;
     }
