@@ -7,13 +7,12 @@ import com.impal.gabungyuk.auth.model.request.UpdateUserRequest;
 import com.impal.gabungyuk.auth.model.response.AuthUserResponse;
 import com.impal.gabungyuk.core.model.SuccessResponse;
 import com.impal.gabungyuk.auth.service.UserService;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import tools.jackson.databind.ObjectMapper;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
+import tools.jackson.databind.ObjectMapper;
 
 @RestController
 public class UserController {
@@ -89,56 +88,32 @@ public class UserController {
                 .build();
     }
 
-    @PostMapping(
+    @PatchMapping(
             value = "/api/v1/update/users/current",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public SuccessResponse<AuthUserResponse> updateUserMultipart(
-            HttpServletRequest requestHttp,
+    public SuccessResponse<AuthUserResponse> updateUser(
             @RequestHeader("Authorization") String authorizationHeader,
             @RequestPart(value = "data", required = false) String dataJson,
-            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePictureFile
+            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture
     ) {
-        // Debug log incoming parts to help diagnose multipart failures
-        log.debug("updateUserMultipart called - dataJson present: {}", dataJson != null && !dataJson.isBlank());
-        if (profilePictureFile != null) {
-            log.debug("profilePictureFile present - name: {}, originalFilename: {}, size: {}",
-                    profilePictureFile.getName(), profilePictureFile.getOriginalFilename(), profilePictureFile.getSize());
-        } else {
-            log.debug("profilePictureFile is null");
+        ObjectMapper mapper = new ObjectMapper();
+        UpdateUserRequest request = null;
+
+        if (dataJson != null && !dataJson.isEmpty()) {
+            try {
+                request = mapper.readValue(dataJson, UpdateUserRequest.class);
+            } catch (Exception e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid JSON: " + e.getMessage());
+            }
         }
 
-        UpdateUserRequest request = parseUpdateUserRequest(dataJson);
-
-        try {
-            AuthUserResponse response = userService.updateCurrentUser(
-                    authorizationHeader,
-                    request,
-                    requestHttp,
-                    profilePictureFile
-            );
-
-            return buildUpdateUserResponse(response);
-        } catch (Exception e) {
-            // Log full stacktrace for debugging; rethrow to keep existing error handling
-            log.error("Failed to update user multipart", e);
-            throw e;
-        }
-    }
-
-    private UpdateUserRequest parseUpdateUserRequest(String dataJson) {
-        if (dataJson == null || dataJson.isBlank()) {
-            return new UpdateUserRequest();
-        }
-
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            return objectMapper.readValue(dataJson, UpdateUserRequest.class);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user data format");
-        }
-    }
+        AuthUserResponse response = userService.updateCurrentUser(
+                authorizationHeader,
+                request,
+                profilePicture
+        );
 
     private SuccessResponse<AuthUserResponse> buildUpdateUserResponse(AuthUserResponse response) {
         return SuccessResponse.<AuthUserResponse>builder()

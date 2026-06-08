@@ -16,6 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -204,36 +208,26 @@ public class UserService {
     }
 
     @Transactional
-    public AuthUserResponse updateCurrentUser(
-            String authorizationHeader,
-            UpdateUserRequest request,
-            HttpServletRequest requestHttp,
-            MultipartFile profilePictureFile
-    ) {
-        if (request == null) {
-            request = new UpdateUserRequest();
-        }
-
+    public AuthUserResponse updateCurrentUser(String authorizationHeader, UpdateUserRequest request, MultipartFile profilePicture) {
         Integer userId = tokenService.extractUserIdFromAuthorizationHeader(authorizationHeader);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        boolean hasNamaLengkap = request.getNamaLengkap() != null && !request.getNamaLengkap().isBlank();
-        boolean hasEmail = request.getEmail() != null && !request.getEmail().isBlank();
-        boolean hasPassword = request.getPassword() != null && !request.getPassword().isBlank();
-        boolean hasProfilePicture = request.getProfilePicture() != null && !request.getProfilePicture().isBlank();
-        boolean hasProfilePictureFile = profilePictureFile != null && !profilePictureFile.isEmpty();
-        boolean hasInstitusi = request.getInstitusi() != null && !request.getInstitusi().isBlank();
-        boolean hasBio = request.getBio() != null && !request.getBio().isBlank();
-        boolean hasKeahlian = request.getKeahlian() != null
-                && request.getKeahlian().stream().anyMatch(item -> item != null && !item.isBlank());
-        boolean hasLokasi = request.getLokasi() != null && !request.getLokasi().isBlank();
-        boolean hasWhatsapp = request.getWhatsapp() != null && !request.getWhatsapp().isBlank();
-        boolean hasInstagram = request.getInstagram() != null && !request.getInstagram().isBlank();
-        boolean hasFacebook = request.getFacebook() != null && !request.getFacebook().isBlank();
-        boolean hasLinkedin = request.getLinkedin() != null && !request.getLinkedin().isBlank();
-
+        // Pengecekan hanya berdasarkan nullability agar "" (string kosong) tetap diproses
+        boolean hasNamaLengkap = request.getNamaLengkap() != null;
+        boolean hasEmail = request.getEmail() != null;
+        boolean hasPassword = request.getPassword() != null;
+        boolean hasProfilePicture = profilePicture != null && !profilePicture.isEmpty();
+        boolean hasInstitusi = request.getInstitusi() != null;
+        boolean hasBio = request.getBio() != null;
+        boolean hasKeahlian = request.getKeahlian() != null;
+        boolean hasLokasi = request.getLokasi() != null;
+        boolean hasWhatsapp = request.getWhatsapp() != null;
+        boolean hasInstagram = request.getInstagram() != null;
+        boolean hasFacebook = request.getFacebook() != null;
+        boolean hasLinkedin = request.getLinkedin() != null;
+        // Validasi minimal ada satu field yang dikirim (bisa berupa string kosong)
         if (!hasNamaLengkap && !hasEmail && !hasPassword && !hasProfilePicture
                 && !hasProfilePictureFile && !hasInstitusi && !hasBio && !hasKeahlian
                 && !hasLokasi && !hasWhatsapp && !hasInstagram && !hasFacebook && !hasLinkedin) {
@@ -247,6 +241,7 @@ public class UserService {
         if (hasEmail) {
             String email = normalizeEmail(request.getEmail());
 
+            // Cek duplikat email hanya jika email-nya berubah
             if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
             }
@@ -259,12 +254,30 @@ public class UserService {
             user.setProvider(mergeProvider(resolveCurrentProvider(user), PROVIDER_MANUAL));
         }
 
-        if (hasProfilePictureFile) {
-            user.setProfilePicture(uploadProfilePicture(requestHttp, profilePictureFile));
-        } else if (hasProfilePicture) {
-            user.setProfilePicture(request.getProfilePicture().trim());
+        if (hasProfilePicture) {
+            try {
+                String fileName = System.currentTimeMillis() + "_" + profilePicture.getOriginalFilename();
+                String uploadDir = System.getProperty("user.home") + "/uploads/profile";
+                Path uploadPath = Paths.get(uploadDir);
+
+                if (!Files.exists(uploadPath)) {
+                    Files.createDirectories(uploadPath);
+                }
+
+                Path filePath = uploadPath.resolve(fileName);
+                Files.copy(profilePicture.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                user.setProfilePicture("/uploads/profile/" + fileName);
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Failed to upload profile picture: " + e.getMessage());
+            }
+        } else {
+            user.setProfilePicture(null);
         }
 
+        // Bagian di bawah ini sekarang bisa menerima string kosong untuk mengosongkan data di DB
         if (hasInstitusi) {
             user.setInstitusi(request.getInstitusi().trim());
         }
@@ -298,8 +311,10 @@ public class UserService {
         }
 
         User updatedUser = userRepository.save(user);
+
         return buildAuthResponse(updatedUser);
     }
+
 
     @Transactional
     public void deleteCurrentUser(String authorizationHeader) {
