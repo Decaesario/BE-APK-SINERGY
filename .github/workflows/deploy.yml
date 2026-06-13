@@ -1,83 +1,32 @@
+name: Deploy to VPS
 
-  name: Build, Analyze, and Deploy
+on:
+  push:
+    branches:
+      - main
 
-  on:
-    push:
-      branches:
-        - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-  jobs:
-    build-and-deploy:
-      name: SonarQube Analysis & Deploy VPS
-      runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
 
-      steps:
-        # Checkout repository
-        - name: Checkout code
-          uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
+            cd /opt/BE-APK-SINERGY
 
-        # Setup Java
-        - name: Set up JDK 17
-          uses: actions/setup-java@v4
-          with:
-            java-version: 17
-            distribution: zulu
+            git pull origin main
 
-        # Cache SonarQube packages
-        - name: Cache SonarQube packages
-          uses: actions/cache@v4
-          with:
-            path: ~/.sonar/cache
-            key: ${{ runner.os }}-sonar
-            restore-keys: ${{ runner.os }}-sonar
+            mvn clean package -DskipTests
 
-        # Cache Maven packages
-        - name: Cache Maven packages
-          uses: actions/cache@v4
-          with:
-            path: ~/.m2
-            key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-            restore-keys: ${{ runner.os }}-m2
+            cd /app
 
-        # Build project & SonarQube analysis
-        - name: Build and Analyze with SonarQube
-          env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-            SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          run: |
-            mvn -B clean verify \
-            org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=GabungYuk_BE \
-            -Dsonar.projectName="GabungYuk Testing Code BE"
+            docker compose down
 
-        # Deploy to VPS only if previous step success
-        - name: Deploy to VPS via SSH
-          if: success()
-          uses: appleboy/ssh-action@v1.0.0
-          with:
-            host: ${{ secrets.VPS_HOST }}
-            username: root
-            password: ${{ secrets.VPS_PASSWORD }}
-            script: |
-              set -e
-              
-              echo "Masuk ke project backend"
-              cd /opt/BE-APK-SINERGY
-              
-              echo "Pull latest code"
-              git pull origin main
-              
-              echo "Build Maven project"
-              mvn clean package -DskipTests
-              
-              echo "Masuk ke folder docker"
-              cd /app
-              
-              echo "Restart docker container"
-              docker compose down
-              docker compose up -d --build
-              
-              echo "Deployment selesai"
-
+            docker compose up -d --build
